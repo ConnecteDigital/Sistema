@@ -1,0 +1,8 @@
+# Dados da empresa e capturas nunca vão para o repositório
+*.json.bak
+dados-*.json
+backups/
+captures/
+.env*
+node_modules/
+.next/

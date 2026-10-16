@@ -340,3 +340,9 @@ export async function insertReconciliation(r: Omit<ReconciliationRecord, "id" | 
     }),
   );
 }
+
+/* ---------------- Empresa ---------------- */
+
+export async function saveCompany(c: { name: string; taxId: string | null }) {
+  await check(db().from("company").upsert({ id: 1, name: c.name, tax_id: c.taxId }));
+}

@@ -18,7 +18,7 @@ const str = (v: unknown) => (v == null ? null : String(v));
 
 export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> {
   const [company, accounts, groups, categories, contacts, recurrences, movements, transfers, cards] = await Promise.all([
-    sb.from("company").select("name").maybeSingle(),
+    sb.from("company").select("name, tax_id").maybeSingle(),
     all<Row>(sb, "bank_accounts"),
     all<Row>(sb, "category_groups"),
     all<Row>(sb, "categories"),
@@ -30,6 +30,7 @@ export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> 
   ]);
   return {
     companyName: (company.data?.name as string) ?? "Connect Digital",
+    companyTaxId: (company.data?.tax_id as string | null) ?? null,
     accounts: accounts.map((r) => ({
       id: r.id,
       name: String(r.name),

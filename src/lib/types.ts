@@ -134,6 +134,7 @@ export interface Transfer {
 
 export interface FinanceData {
   companyName: string;
+  companyTaxId?: string | null;
   accounts: BankAccount[];
   groups: CategoryGroup[];
   categories: Category[];

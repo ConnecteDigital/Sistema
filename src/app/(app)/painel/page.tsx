@@ -14,6 +14,7 @@ import { TransfersPanel } from "@/components/transfers-panel";
 import { DailyBreakdown, RankingCard, useRankings } from "@/components/drilldown";
 import { useMovementDialog } from "@/components/movement-dialog";
 import { PageHeader } from "@/components/page-header";
+import { useProfile } from "@/components/profile";
 import { Button } from "@/components/ui/button";
 import { Card, Checkbox } from "@/components/ui/primitives";
 import { accountBalances, balanceAt, dailyBalances, movementsIn, periodSummary, transfersIn } from "@/lib/finance";
@@ -32,6 +33,7 @@ const FOCUS_LABEL: Record<Exclude<Focus, null>, string> = {
 
 export default function PainelPage() {
   const { data, error, today, range, accountIds, setAccountIds } = useFinance();
+  const profile = useProfile();
   const { open } = useMovementDialog();
   const [mode, setMode] = React.useState<ChartMode>("saldo");
   const [focus, setFocus] = React.useState<Focus>(null);
@@ -70,7 +72,7 @@ export default function PainelPage() {
       <PageHeader
         eyebrow={`Painel · ${formatRange(range.start, range.end)}`}
         title={`${greeting()},`}
-        accent={`${(process.env.NEXT_PUBLIC_USER_NAME ?? "Gabriel").toUpperCase()}.`}
+        accent={`${profile.name.split(" ")[0].toUpperCase()}.`}
         description="Veja o resumo do seu fluxo de caixa."
         actions={
           <>

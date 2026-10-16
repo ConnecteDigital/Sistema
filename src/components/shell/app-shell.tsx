@@ -27,9 +27,11 @@ import { usePathname } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
+import { useLocalSetting } from "@/lib/use-local-setting";
 import { cn } from "@/lib/utils";
 import { useFinance } from "../finance-provider";
 import { MovementDialogHost, useMovementDialog } from "../movement-dialog";
+import { useProfile } from "../profile";
 import { ToastProvider } from "../toast";
 
 const NAV = [
@@ -56,39 +58,6 @@ const NAV = [
   },
 ];
 
-/** Preferência local (tema, menu recolhido) guardada no navegador. */
-function useLocalSetting(key: string, fallback: string) {
-  const subscribe = React.useCallback((cb: () => void) => {
-    window.addEventListener("local-setting", cb);
-    window.addEventListener("storage", cb);
-    return () => {
-      window.removeEventListener("local-setting", cb);
-      window.removeEventListener("storage", cb);
-    };
-  }, []);
-  const value = React.useSyncExternalStore(
-    subscribe,
-    () => {
-      try {
-        return localStorage.getItem(key) ?? fallback;
-      } catch {
-        return fallback;
-      }
-    },
-    () => fallback,
-  );
-  const set = React.useCallback(
-    (v: string) => {
-      try {
-        localStorage.setItem(key, v);
-      } catch {}
-      window.dispatchEvent(new Event("local-setting"));
-    },
-    [key],
-  );
-  return [value, set] as const;
-}
-
 function useTheme() {
   const [theme, setTheme] = useLocalSetting("theme", "light");
   const dark = theme === "dark";
@@ -103,6 +72,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
   const { data } = useFinance();
   const { open } = useMovementDialog();
   const company = data?.companyName ?? "Connect Digital";
+  const profile = useProfile();
   return (
     <aside
       className={cn(
@@ -176,7 +146,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-[12.5px] font-medium">Financeiro</div>
+              <div className="truncate text-[12.5px] font-medium">{profile.name}</div>
               <div className="truncate text-[11px] text-sidebar-foreground">{company}</div>
             </div>
           )}

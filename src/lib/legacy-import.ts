@@ -175,9 +175,11 @@ export function convertLegacyExport(src: LegacyExport, newId: () => string = () 
       name: s.name.trim(),
       isCustomer: s.types.includes("Customer"),
       isSupplier: s.types.includes("Supplier") || s.types.includes("Provider"),
+      personType: s.personType === "LegalPerson" ? "legal" : "natural",
       taxId: clean(s.taxId),
       email: clean(s.email),
       phone: clean(s.phone),
+      address: {},
       notes: clean(s.notes),
       deleted: s.deleted,
     };

@@ -49,14 +49,28 @@ export interface Category {
   position: number;
 }
 
+export interface Address {
+  zip?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
+  /** Código IBGE do município (exigido na NFS-e). */
+  ibge?: string;
+}
+
 export interface Contact {
   id: string;
   name: string;
   isCustomer: boolean;
   isSupplier: boolean;
+  personType: "natural" | "legal";
   taxId: string | null;
   email: string | null;
   phone: string | null;
+  address: Address;
   notes: string | null;
   deleted: boolean;
 }

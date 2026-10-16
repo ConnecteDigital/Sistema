@@ -176,3 +176,40 @@ export async function insertAccount(a: AccountInput) {
 export async function updateAccount(id: string, a: Partial<AccountInput>) {
   await check(db().from("bank_accounts").update(accountRow(a)).eq("id", id));
 }
+
+export interface ContactInput {
+  name: string;
+  isCustomer: boolean;
+  isSupplier: boolean;
+  personType: "natural" | "legal";
+  taxId: string | null;
+  email: string | null;
+  phone: string | null;
+  address: Record<string, string | undefined>;
+  notes: string | null;
+  deleted?: boolean;
+}
+
+const contactRow = (c: Partial<ContactInput>) => {
+  const row: Record<string, unknown> = {};
+  if (c.name !== undefined) row.name = c.name;
+  if (c.isCustomer !== undefined) row.is_customer = c.isCustomer;
+  if (c.isSupplier !== undefined) row.is_supplier = c.isSupplier;
+  if (c.personType !== undefined) row.person_type = c.personType;
+  if (c.taxId !== undefined) row.tax_id = c.taxId;
+  if (c.email !== undefined) row.email = c.email;
+  if (c.phone !== undefined) row.phone = c.phone;
+  if (c.address !== undefined) row.address = c.address;
+  if (c.notes !== undefined) row.notes = c.notes;
+  if (c.deleted !== undefined) row.deleted = c.deleted;
+  return row;
+};
+
+export async function insertContact(c: ContactInput): Promise<string> {
+  const row = await check(db().from("contacts").insert(contactRow(c)).select("id").single());
+  return (row as { id: string }).id;
+}
+
+export async function updateContact(id: string, c: Partial<ContactInput>) {
+  await check(db().from("contacts").update(contactRow(c)).eq("id", id));
+}

@@ -146,3 +146,33 @@ export async function cancelRecurrence(id: string, deleteFrom: string | null) {
 export async function reactivateRecurrence(id: string) {
   await check(db().from("recurrences").update({ active: true }).eq("id", id));
 }
+
+export interface AccountInput {
+  name: string;
+  bank: string | null;
+  branch: string | null;
+  accountNumber: string | null;
+  initialBalance: number;
+  active: boolean;
+  position?: number;
+}
+
+const accountRow = (a: Partial<AccountInput>) => {
+  const row: Record<string, unknown> = {};
+  if (a.name !== undefined) row.name = a.name;
+  if (a.bank !== undefined) row.bank = a.bank;
+  if (a.branch !== undefined) row.branch = a.branch;
+  if (a.accountNumber !== undefined) row.account_number = a.accountNumber;
+  if (a.initialBalance !== undefined) row.initial_balance = a.initialBalance;
+  if (a.active !== undefined) row.active = a.active;
+  if (a.position !== undefined) row.position = a.position;
+  return row;
+};
+
+export async function insertAccount(a: AccountInput) {
+  await check(db().from("bank_accounts").insert(accountRow(a)));
+}
+
+export async function updateAccount(id: string, a: Partial<AccountInput>) {
+  await check(db().from("bank_accounts").update(accountRow(a)).eq("id", id));
+}

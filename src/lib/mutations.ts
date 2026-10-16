@@ -303,3 +303,40 @@ export async function deleteCard(id: string) {
   await check(db().from("movements").update({ origin: "web" }).eq("origin", `card:${id}`));
   await check(db().from("credit_cards").delete().eq("id", id));
 }
+
+/* ---------------- Conciliações ---------------- */
+
+export interface ReconciliationRecord {
+  id: string;
+  bankAccountId: string;
+  name: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  closingBalance: number | null;
+  createdAt: string;
+}
+
+export async function listReconciliations(): Promise<ReconciliationRecord[]> {
+  const rows = (await check(db().from("reconciliations").select("*").order("created_at", { ascending: false }).limit(50))) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    id: String(r.id),
+    bankAccountId: String(r.bank_account_id),
+    name: r.name == null ? null : String(r.name),
+    periodStart: r.period_start == null ? null : String(r.period_start),
+    periodEnd: r.period_end == null ? null : String(r.period_end),
+    closingBalance: r.closing_balance == null ? null : Number(r.closing_balance),
+    createdAt: String(r.created_at),
+  }));
+}
+
+export async function insertReconciliation(r: Omit<ReconciliationRecord, "id" | "createdAt">) {
+  await check(
+    db().from("reconciliations").insert({
+      bank_account_id: r.bankAccountId,
+      name: r.name,
+      period_start: r.periodStart,
+      period_end: r.periodEnd,
+      closing_balance: r.closingBalance,
+    }),
+  );
+}

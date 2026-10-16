@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Plus, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ChartLegend, ChartModeSwitch, CashflowChart, type ChartMode } from "@/components/cashflow-chart";
@@ -8,8 +8,10 @@ import { AccountAvatar } from "@/components/avatars";
 import { AccountFilter, PeriodPicker } from "@/components/filters";
 import { useFinance } from "@/components/finance-provider";
 import { HeroCard, KpiCard } from "@/components/kpi";
-import { LedgerPanel } from "@/components/ledger-panel";
+import { LedgerPanel, type Tab } from "@/components/ledger-panel";
+import type { DateRange, Movement } from "@/lib/types";
 import { TransfersPanel } from "@/components/transfers-panel";
+import { DailyBreakdown, RankingCard, useRankings } from "@/components/drilldown";
 import { useMovementDialog } from "@/components/movement-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -33,12 +35,7 @@ export default function PainelPage() {
   const { open } = useMovementDialog();
   const [mode, setMode] = React.useState<ChartMode>("saldo");
   const [focus, setFocus] = React.useState<Focus>(null);
-  const pick = (f: Exclude<Focus, null>) => {
-    const next = focus === f ? null : f;
-    setFocus(next);
-    if (next === "inflow" || next === "outflow") setMode("barras");
-    else if (focus === "inflow" || focus === "outflow") setMode("saldo");
-  };
+  const pick = (f: Exclude<Focus, null>) => setFocus((cur) => (cur === f ? null : f));
 
   const computed = React.useMemo(() => {
     if (!data) return null;
@@ -87,13 +84,11 @@ export default function PainelPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <HeroCard
-          label="Saldo atual"
-          amount={summary.current}
-          sub={`Projeção · ${formatBRL(summary.projection)}`}
-          dimmed={focus !== null}
-          onClick={focus ? () => setFocus(null) : undefined}
-        />
+        {focus ? (
+          <KpiCard label="Saldo atual" tone="neutral" icon={<Wallet />} amount={summary.current} sub={`Projeção · ${formatBRL(summary.projection)}`} onClick={() => setFocus(null)} />
+        ) : (
+          <HeroCard label="Saldo atual" amount={summary.current} sub={`Projeção · ${formatBRL(summary.projection)}`} />
+        )}
         <KpiCard
           label="Recebidos"
           tone="success"
@@ -145,6 +140,24 @@ export default function PainelPage() {
         </div>
       </div>
 
+      {focus === "inflow" || focus === "outflow" || focus === "overdue" ? (
+        <FocusView
+          key={focus}
+          type={focus === "inflow" ? "inflow" : "outflow"}
+          movements={
+            focus === "inflow" ? computed.inflows : focus === "outflow" ? computed.outflows : computed.outflows.filter((m) => !m.paid && m.date < today)
+          }
+          allOfType={focus === "inflow" ? computed.inflows : computed.outflows}
+          initialTab={focus === "overdue" ? "overdue" : "open"}
+          range={range}
+          today={today}
+        />
+      ) : focus === "transfer" ? (
+        <div className="mt-3 grid">
+          <TransfersPanel transfers={computed.transfers} accountName={(id) => data.accounts.find((a) => a.id === id)?.name ?? "—"} />
+        </div>
+      ) : (
+        <>
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)]">
         <Card className="flex flex-col overflow-hidden">
           <div className="flex items-start justify-between p-5 pb-3">
@@ -180,25 +193,19 @@ export default function PainelPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-[15px] font-semibold">
-                {focus === "inflow" ? "Recebimentos por dia" : focus === "outflow" ? "Despesas por dia" : "Fluxo de caixa"}
+                Fluxo de caixa
               </h2>
               <p className="text-[12.5px] text-muted-foreground">
-                {focus === "inflow" || focus === "outflow" ? "Só o que foi baixado" : "Saldo em caixa"} · {formatRange(range.start, range.end)}
+                Saldo em caixa · {formatRange(range.start, range.end)}
               </p>
             </div>
             <ChartModeSwitch value={mode} onChange={setMode} />
           </div>
           <div className="mt-2">
-            <CashflowChart
-              key={focus ?? "all"}
-              points={points}
-              mode={mode}
-              today={today}
-              series={focus === "inflow" || focus === "outflow" ? focus : undefined}
-            />
+            <CashflowChart points={points} mode={mode} today={today} />
           </div>
           <div className="mt-2">
-            <ChartLegend mode={mode} series={focus === "inflow" || focus === "outflow" ? focus : undefined} />
+            <ChartLegend mode={mode} />
           </div>
           <div className="mt-3 grid grid-cols-3 gap-4 border-t pt-3">
             <div>
@@ -218,34 +225,41 @@ export default function PainelPage() {
       </div>
 
       <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
-        {focus === "transfer" ? (
-          <TransfersPanel transfers={computed.transfers} accountName={(id) => data.accounts.find((a) => a.id === id)?.name ?? "—"} />
-        ) : (
-          <>
-            {focus !== "outflow" && (
-              <LedgerPanel
-                key={`in-${focus}`}
-                type="inflow"
-                movements={computed.inflows}
-                today={today}
-                initialTab={focus === "inflow" ? "paid" : focus === "overdue" ? "overdue" : "open"}
-                className={focus === "inflow" ? "lg:col-span-2" : undefined}
-              />
-            )}
-            {focus !== "inflow" && (
-              <LedgerPanel
-                key={`out-${focus}`}
-                type="outflow"
-                movements={computed.outflows}
-                today={today}
-                initialTab={focus === "outflow" ? "paid" : focus === "overdue" ? "overdue" : "open"}
-                className={focus === "outflow" ? "lg:col-span-2" : undefined}
-              />
-            )}
-          </>
-        )}
+        <LedgerPanel type="inflow" movements={computed.inflows} today={today} />
+        <LedgerPanel type="outflow" movements={computed.outflows} today={today} />
       </div>
+        </>
+      )}
     </>
   );
 }
 
+
+function FocusView({
+  type,
+  movements,
+  allOfType,
+  initialTab,
+  range,
+  today,
+}: {
+  type: "inflow" | "outflow";
+  movements: Movement[];
+  allOfType: Movement[];
+  initialTab: Tab;
+  range: DateRange;
+  today: string;
+}) {
+  const { byContact, byCategory } = useRankings(movements);
+  const isIn = type === "inflow";
+  return (
+    <div className="mt-3 space-y-3">
+      <DailyBreakdown type={type} movements={movements} range={range} today={today} title={isIn ? "Faturamento por dia" : "Despesas por dia"} />
+      <div className="grid items-stretch gap-3 lg:grid-cols-2">
+        <RankingCard title={isIn ? "Por cliente" : "Por fornecedor"} rows={byContact} type={type} />
+        <RankingCard title="Por categoria" rows={byCategory} type={type} />
+      </div>
+      <LedgerPanel type={type} movements={allOfType} today={today} initialTab={initialTab} wide />
+    </div>
+  );
+}

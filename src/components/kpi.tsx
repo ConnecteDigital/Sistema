@@ -37,6 +37,14 @@ const ACTIVE_RING: Record<Tone, string> = {
   warning: "border-warning/70 ring-2 ring-warning/25",
   neutral: "border-ring ring-2 ring-ring/20",
 };
+const HERO_GRADIENT: Record<Tone, [string, string, string]> = {
+  success: ["#15803d", "#22c55e", "rgb(22 163 74 / 0.55)"],
+  danger: ["#b91c1c", "#f05252", "rgb(220 38 38 / 0.5)"],
+  info: ["#1d4ed8", "#4f8ff7", "rgb(37 99 235 / 0.5)"],
+  warning: ["#a16207", "#e0b21a", "rgb(202 138 4 / 0.5)"],
+  neutral: ["#404040", "#737373", "rgb(0 0 0 / 0.3)"],
+};
+
 const ACTIVE_BAR: Record<Tone, string> = {
   success: "bg-success",
   danger: "bg-destructive",
@@ -70,6 +78,9 @@ export function KpiCard({
   onClick?: () => void;
 }) {
   const interactive = Boolean(onClick);
+  // Card selecionado vira o destaque, na cor do próprio card.
+  if (active && amount !== undefined)
+    return <HeroCard label={label} amount={amount} sub={sub} onClick={onClick} gradient={HERO_GRADIENT[tone]} title="Voltar para a visão geral" />;
   return (
     <Card
       role={interactive ? "button" : undefined}
@@ -125,6 +136,8 @@ export function HeroCard({
   sub,
   dimmed,
   onClick,
+  gradient,
+  title,
 }: {
   label: string;
   amount?: number;
@@ -132,6 +145,9 @@ export function HeroCard({
   sub?: React.ReactNode;
   dimmed?: boolean;
   onClick?: () => void;
+  /** [cor escura, cor clara, sombra]; padrão: laranja da marca. */
+  gradient?: [string, string, string];
+  title?: string;
 }) {
   const animated = useCountUp(amount ?? count ?? 0);
   const parts = amount !== undefined ? splitBRL(Math.round(animated * 100) / 100) : null;
@@ -139,12 +155,15 @@ export function HeroCard({
     <div
       onClick={onClick}
       className={cn(
-        "relative flex min-h-[132px] flex-col overflow-hidden rounded-xl p-5 text-white shadow-[0_10px_28px_-10px_rgb(227_95_32/0.6)] animate-pop-in transition-[transform,opacity] duration-300",
+        "relative flex min-h-[132px] flex-col overflow-hidden rounded-xl p-5 text-white animate-pop-in transition-[transform,opacity] duration-300",
         onClick && "cursor-pointer hover:-translate-y-0.5",
         dimmed && "scale-[0.98] opacity-70",
       )}
-      title={onClick ? "Mostrar tudo" : undefined}
-      style={{ background: "radial-gradient(120% 140% at 15% 0%, var(--hero-to) 0%, var(--hero-from) 65%)" }}
+      title={title ?? (onClick ? "Mostrar tudo" : undefined)}
+      style={{
+        background: `radial-gradient(120% 140% at 15% 0%, ${gradient?.[1] ?? "var(--hero-to)"} 0%, ${gradient?.[0] ?? "var(--hero-from)"} 65%)`,
+        boxShadow: `0 10px 28px -10px ${gradient?.[2] ?? "rgb(227 95 32 / 0.6)"}`,
+      }}
     >
       <div className="pointer-events-none absolute -right-10 -top-16 size-48 rounded-full bg-white/5 blur-2xl" />
       <Eyebrow className="text-white/75">{label}</Eyebrow>

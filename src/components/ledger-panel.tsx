@@ -8,10 +8,10 @@ import { formatBRL, formatDayMonth } from "@/lib/format";
 import type { Movement, MovementType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFinanceActions } from "./finance-actions";
+import { useFinance } from "./finance-provider";
 import { useMovementDialog } from "./movement-dialog";
 
 export type Tab = "open" | "paid" | "overdue";
-const PAGE = 10;
 
 /** Card "O que entra" / "O que sai" do painel. */
 export function LedgerPanel({
@@ -20,13 +20,26 @@ export function LedgerPanel({
   today,
   initialTab = "open",
   className,
+  wide,
 }: {
   type: MovementType;
   movements: Movement[];
   today: string;
   initialTab?: Tab;
   className?: string;
+  /** Versão larga (visão detalhada do card): mais colunas e 15 por página. */
+  wide?: boolean;
 }) {
+  const { data } = useFinance();
+  const PAGE = wide ? 15 : 10;
+  const names = React.useMemo(
+    () => ({
+      contact: new Map(data?.contacts.map((c) => [c.id, c.name]) ?? []),
+      category: new Map(data?.categories.map((c) => [c.id, c.name]) ?? []),
+      account: new Map(data?.accounts.map((a) => [a.id, a.name]) ?? []),
+    }),
+    [data],
+  );
   const isIn = type === "inflow";
   const { open } = useMovementDialog();
   const { setPaid, remove } = useFinanceActions();
@@ -52,8 +65,9 @@ export function LedgerPanel({
     <Card className={cn("flex flex-col p-5 animate-pop-in", className)}>
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold">{isIn ? "O que entra" : "O que sai"}</h2>
+          <h2 className="text-[15px] font-semibold">{wide ? (isIn ? "Contas a receber" : "Contas a pagar") : isIn ? "O que entra" : "O que sai"}</h2>
           <p className="text-[12.5px] text-muted-foreground">
+            {wide ? "Lançamentos do período · " : ""}
             {isIn ? "A receber" : "A pagar"}:{" "}
             <span className={cn("font-semibold tabular", isIn ? "text-foreground" : "text-destructive-foreground")}>{formatBRL(openTotal)}</span>
           </p>
@@ -81,6 +95,13 @@ export function LedgerPanel({
           <tr className="border-b text-left text-[12px] text-muted-foreground">
             <th className="py-2.5 pl-2 font-normal">Data</th>
             <th className="py-2.5 font-normal">Descrição</th>
+            {wide && (
+              <>
+                <th className="py-2.5 font-normal">{isIn ? "Cliente" : "Fornecedor"}</th>
+                <th className="py-2.5 font-normal">Categoria</th>
+                <th className="py-2.5 font-normal">Conta</th>
+              </>
+            )}
             <th className="py-2.5 font-normal">Status</th>
             <th className="py-2.5 pr-2 text-right font-normal">Valor</th>
           </tr>
@@ -91,7 +112,14 @@ export function LedgerPanel({
             return (
               <tr key={m.id} className="group border-b last:border-0 hover:bg-accent/50">
                 <td className="w-16 py-2.5 pl-2 text-muted-foreground tabular">{formatDayMonth(m.date)}</td>
-                <td className="max-w-0 truncate py-2.5 pr-2">{m.description}</td>
+                <td className={cn("max-w-0 truncate py-2.5 pr-2", wide && "font-medium")}>{m.description}</td>
+                {wide && (
+                  <>
+                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.contact.get(m.contactId ?? "") ?? "—"}</td>
+                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>
+                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.account.get(m.bankAccountId) ?? "—"}</td>
+                  </>
+                )}
                 <td className="w-24 py-2.5">
                   {m.paid ? (
                     <Badge tone="success" dot>
@@ -128,7 +156,7 @@ export function LedgerPanel({
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={4} className="py-10 text-center text-[12.5px] text-muted-foreground">
+              <td colSpan={wide ? 7 : 4} className="py-10 text-center text-[12.5px] text-muted-foreground">
                 Nada por aqui no período.
               </td>
             </tr>
@@ -137,7 +165,7 @@ export function LedgerPanel({
         {rows.length > 0 && (
           <tfoot>
             <tr className="bg-muted/70">
-              <td colSpan={3} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
+              <td colSpan={wide ? 6 : 3} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
                 Total
               </td>
               <td className={cn("py-2.5 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(total)}</td>

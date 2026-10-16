@@ -30,6 +30,7 @@ import { HeroCard, KpiCard } from "@/components/kpi";
 import { LoadingState } from "@/components/loading-state";
 import { useMovementDialog } from "@/components/movement-dialog";
 import { PageHeader } from "@/components/page-header";
+import { TransfersPanel } from "@/components/transfers-panel";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Checkbox, Popover, PopoverContent, PopoverTrigger, Segmented } from "@/components/ui/primitives";
 import { inRange } from "@/lib/dates";
@@ -93,6 +94,7 @@ export default function MovimentosPage() {
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date", dir: "desc" });
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [showTransfers, setShowTransfers] = React.useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
   // Atalhos: "/" busca, "n" novo lançamento.
@@ -194,6 +196,23 @@ export default function MovimentosPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Card selecionado no topo (atalho para os filtros de tipo e situação).
+  const cardFocus: null | "inflow" | "outflow" | "transfer" | "overdue" = showTransfers
+    ? "transfer"
+    : filters.status === "overdue" && type === "all"
+      ? "overdue"
+      : filters.status === "all" && type !== "all"
+        ? type
+        : null;
+  function focusCard(f: typeof cardFocus) {
+    const next = f === cardFocus ? null : f;
+    setShowTransfers(next === "transfer");
+    setType(next === "inflow" || next === "outflow" ? next : "all");
+    setFilters((cur) => ({ ...cur, status: next === "overdue" ? "overdue" : "all" }));
+    setPage(0);
+    setSelected(new Set());
+  }
+
   const resetPage = () => {
     setPage(0);
     setSelected(new Set());
@@ -218,14 +237,57 @@ export default function MovimentosPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <HeroCard label="Total de lançamentos" count={inPeriod.length} sub={`Saldo · ${formatBRL(balance)}`} />
-        <KpiCard label="Entradas" tone="success" amount={sum(ins)} sub={`${ins.length} lançamentos`} />
-        <KpiCard label="Saídas" tone="danger" amount={sum(outs)} sub={`${outs.length} lançamentos`} />
-        <KpiCard label="Transferências" tone="info" amount={sum(transfers)} sub={`${transfers.length} entre contas`} />
-        <KpiCard label="Atrasados" tone="warning" amount={sum(overdue)} sub={`${overdue.length} vencidos até hoje`} />
+        <HeroCard
+          label="Total de lançamentos"
+          count={inPeriod.length}
+          sub={`Saldo · ${formatBRL(balance)}`}
+          dimmed={cardFocus !== null}
+          onClick={cardFocus ? () => focusCard(null) : undefined}
+        />
+        <KpiCard
+          label="Entradas"
+          tone="success"
+          amount={sum(ins)}
+          sub={`${ins.length} lançamentos`}
+          active={cardFocus === "inflow"}
+          dimmed={cardFocus !== null && cardFocus !== "inflow"}
+          onClick={() => focusCard("inflow")}
+        />
+        <KpiCard
+          label="Saídas"
+          tone="danger"
+          amount={sum(outs)}
+          sub={`${outs.length} lançamentos`}
+          active={cardFocus === "outflow"}
+          dimmed={cardFocus !== null && cardFocus !== "outflow"}
+          onClick={() => focusCard("outflow")}
+        />
+        <KpiCard
+          label="Transferências"
+          tone="info"
+          amount={sum(transfers)}
+          sub={`${transfers.length} entre contas`}
+          active={cardFocus === "transfer"}
+          dimmed={cardFocus !== null && cardFocus !== "transfer"}
+          onClick={() => focusCard("transfer")}
+        />
+        <KpiCard
+          label="Atrasados"
+          tone="warning"
+          amount={sum(overdue)}
+          sub={`${overdue.length} vencidos até hoje`}
+          active={cardFocus === "overdue"}
+          dimmed={cardFocus !== null && cardFocus !== "overdue"}
+          onClick={() => focusCard("overdue")}
+        />
       </div>
 
-      <Card className="mt-3 overflow-hidden">
+      {showTransfers ? (
+        <div className="mt-3 grid">
+          <TransfersPanel transfers={[...transfers].sort((a, b) => b.date.localeCompare(a.date))} accountName={(id) => lookups.account.get(id)?.name ?? "—"} />
+        </div>
+      ) : (
+      <Card key={cardFocus ?? "all"} className="mt-3 overflow-hidden animate-pop-in">
         <div className="flex flex-wrap items-center gap-2 p-4">
           <PeriodPicker
             value={range}
@@ -506,6 +568,7 @@ export default function MovimentosPage() {
           )}
         </div>
       </Card>
+      )}
     </>
   );
 }

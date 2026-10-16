@@ -10,15 +10,27 @@ import { cn } from "@/lib/utils";
 import { useFinanceActions } from "./finance-actions";
 import { useMovementDialog } from "./movement-dialog";
 
-type Tab = "open" | "paid" | "overdue";
+export type Tab = "open" | "paid" | "overdue";
 const PAGE = 10;
 
 /** Card "O que entra" / "O que sai" do painel. */
-export function LedgerPanel({ type, movements, today }: { type: MovementType; movements: Movement[]; today: string }) {
+export function LedgerPanel({
+  type,
+  movements,
+  today,
+  initialTab = "open",
+  className,
+}: {
+  type: MovementType;
+  movements: Movement[];
+  today: string;
+  initialTab?: Tab;
+  className?: string;
+}) {
   const isIn = type === "inflow";
   const { open } = useMovementDialog();
   const { setPaid, remove } = useFinanceActions();
-  const [tab, setTab] = React.useState<Tab>("open");
+  const [tab, setTab] = React.useState<Tab>(initialTab);
   const [page, setPage] = React.useState(0);
 
   const lists = React.useMemo(() => {
@@ -37,7 +49,7 @@ export function LedgerPanel({ type, movements, today }: { type: MovementType; mo
   const valueColor = isIn ? "text-foreground" : "text-destructive-foreground";
 
   return (
-    <Card className="flex flex-col p-5">
+    <Card className={cn("flex flex-col p-5 animate-pop-in", className)}>
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-[15px] font-semibold">{isIn ? "O que entra" : "O que sai"}</h2>

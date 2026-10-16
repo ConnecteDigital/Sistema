@@ -55,7 +55,20 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 /** Gráfico do card "Fluxo de caixa" (painel e extrato). */
-export function CashflowChart({ points, mode, today, height = 260 }: { points: DailyPoint[]; mode: ChartMode; today: ISODate; height?: number }) {
+export function CashflowChart({
+  points,
+  mode,
+  today,
+  height = 260,
+  series,
+}: {
+  points: DailyPoint[];
+  mode: ChartMode;
+  today: ISODate;
+  height?: number;
+  /** Mostra só entradas ou só saídas (cards do painel). */
+  series?: "inflow" | "outflow";
+}) {
   const showToday = points.some((p) => p.date === today);
   const data = React.useMemo(() => {
     const out: (DailyPoint & { cumIn: number; cumOut: number })[] = [];
@@ -101,8 +114,8 @@ export function CashflowChart({ points, mode, today, height = 260 }: { points: D
             {y}
             {tooltip}
             {todayLine}
-            <Bar dataKey="inflow" name="Entradas" fill="var(--chart-in)" radius={[3, 3, 0, 0]} maxBarSize={10} />
-            <Bar dataKey="outflow" name="Saídas" fill="var(--chart-out)" radius={[3, 3, 0, 0]} maxBarSize={10} />
+            {series !== "outflow" && <Bar dataKey="inflow" name="Entradas" fill="var(--chart-in)" radius={[3, 3, 0, 0]} maxBarSize={series ? 18 : 10} />}
+            {series !== "inflow" && <Bar dataKey="outflow" name="Saídas" fill="var(--chart-out)" radius={[3, 3, 0, 0]} maxBarSize={series ? 18 : 10} />}
           </BarChart>
         ) : (
           <LineChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
@@ -111,8 +124,8 @@ export function CashflowChart({ points, mode, today, height = 260 }: { points: D
             {y}
             {tooltip}
             {todayLine}
-            <Line type="monotone" dataKey={mode === "acumulado" ? "cumIn" : "inflow"} name="Entradas" stroke="var(--chart-in)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-            <Line type="monotone" dataKey={mode === "acumulado" ? "cumOut" : "outflow"} name="Saídas" stroke="var(--chart-out)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            {series !== "outflow" && <Line type="monotone" dataKey={mode === "acumulado" ? "cumIn" : "inflow"} name="Entradas" stroke="var(--chart-in)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+            {series !== "inflow" && <Line type="monotone" dataKey={mode === "acumulado" ? "cumOut" : "outflow"} name="Saídas" stroke="var(--chart-out)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
           </LineChart>
         )}
       </ResponsiveContainer>
@@ -120,7 +133,7 @@ export function CashflowChart({ points, mode, today, height = 260 }: { points: D
   );
 }
 
-export function ChartLegend({ mode }: { mode: ChartMode }) {
+export function ChartLegend({ mode, series }: { mode: ChartMode; series?: "inflow" | "outflow" }) {
   return (
     <div className="flex items-center gap-4 text-[11.5px] text-muted-foreground">
       {mode === "saldo" ? (
@@ -129,12 +142,16 @@ export function ChartLegend({ mode }: { mode: ChartMode }) {
         </span>
       ) : (
         <>
-          <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-3 rounded bg-[var(--chart-in)]" /> Entradas {mode === "acumulado" && "acumuladas"}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-3 rounded bg-[var(--chart-out)]" /> Saídas {mode === "acumulado" && "acumuladas"}
-          </span>
+          {series !== "outflow" && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-0.5 w-3 rounded bg-[var(--chart-in)]" /> Entradas {mode === "acumulado" && "acumuladas"}
+            </span>
+          )}
+          {series !== "inflow" && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-0.5 w-3 rounded bg-[var(--chart-out)]" /> Saídas {mode === "acumulado" && "acumuladas"}
+            </span>
+          )}
         </>
       )}
       <span className="flex items-center gap-1.5">

@@ -302,12 +302,12 @@ export function cashflowStatement(data: FinanceData, scope: Scope, range: DateRa
   };
 }
 
-/** Despesas realizadas por categoria (para a aba Categorias dos relatórios). */
-export function expensesByCategory(data: FinanceData, scope: Scope, range: DateRange, top = 5) {
+/** Valores realizados por categoria (aba Categorias dos relatórios); despesas por padrão. */
+export function expensesByCategory(data: FinanceData, scope: Scope, range: DateRange, top = 5, type: "inflow" | "outflow" = "outflow") {
   const catById = new Map(data.categories.map((c) => [c.id, c]));
   const totals = new Map<string, number>();
   for (const m of movementsIn(data, scope, range)) {
-    if (!m.paid || m.type !== "outflow") continue;
+    if (!m.paid || m.type !== type) continue;
     const key = m.categoryId ?? "none";
     totals.set(key, (totals.get(key) ?? 0) + m.amount);
   }

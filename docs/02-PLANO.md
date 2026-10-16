@@ -91,6 +91,8 @@ Saldos, DFC e séries do gráfico serão calculados por **views/funções SQL**,
 - [x] Identidade visual da Connect (laranja #E35F20 + logo) no lugar do verde do original
 - [x] **Movimentos**: busca (atalho `/`), filtros, ordenação, seleção em massa, editar/baixar/duplicar/excluir com "Desfazer", exportar CSV
 - [x] Modal de lançamento: edição, exclusão, máscara de valor, séries recorrentes e parceladas
+- [x] Cards clicáveis (Painel e Movimentos) que filtram a tela com animação
+- [x] **Relatórios**: demonstrativo (DFC) mês a mês com detalhamento, fluxo mensal (6/12/24m), categorias (despesas/receitas), exportar CSV e PDF
 
 ## Preciso de você antes de começar
 1. **Supabase**: criar o projeto (ou me dizer qual usar) e liberar o acesso a ele aqui.

@@ -11,6 +11,8 @@ interface FinanceContextValue {
   error: string | null;
   loading: boolean;
   reload: () => Promise<void>;
+  /** Atualização otimista: muda os dados na tela antes de o banco responder. */
+  applyLocal: (fn: (d: FinanceData) => FinanceData) => void;
   today: string;
   range: DateRange;
   setRange: (r: DateRange) => void;
@@ -63,9 +65,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const applyLocal = React.useCallback((fn: (d: FinanceData) => FinanceData) => setData((d) => (d ? fn(d) : d)), []);
+
   const value = React.useMemo(
-    () => ({ data: today ? data : null, error, loading, reload, today, range, setRange, accountIds, setAccountIds }),
-    [data, error, loading, reload, today, range, accountIds],
+    () => ({ data: today ? data : null, error, loading, reload, applyLocal, today, range, setRange, accountIds, setAccountIds }),
+    [data, error, loading, reload, applyLocal, today, range, accountIds],
   );
   return <FinanceContext value={value}>{children}</FinanceContext>;
 }

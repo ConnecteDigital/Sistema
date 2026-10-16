@@ -1,17 +1,21 @@
 "use client";
 
-import { ArrowLeftRight, CalendarDays, Info, Paperclip, Plus } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Info, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
-import { createClient, supabaseConfigured } from "@/lib/supabase/client";
-import type { MovementType, RecurrencePeriod } from "@/lib/types";
+import { addDays, addMonths } from "@/lib/dates";
+import { deleteMovements, insertMovements, insertRecurrence, insertTransfer, updateMovement } from "@/lib/mutations";
+import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFinance } from "./finance-provider";
+import { useToast } from "./toast";
 
 type Kind = MovementType | "transfer";
 interface OpenOptions {
   kind: Kind;
+  /** Lançamento a editar (omitir para criar um novo). */
+  movement?: Movement;
 }
 
 const DialogCtx = React.createContext<{ open: (o: OpenOptions) => void } | null>(null);
@@ -23,14 +27,17 @@ export function useMovementDialog() {
 }
 
 export function MovementDialogHost({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<{ open: boolean; kind: Kind; key: number }>({ open: false, kind: "inflow", key: 0 });
-  const ctx = React.useMemo(() => ({ open: (o: OpenOptions) => setState((s) => ({ open: true, kind: o.kind, key: s.key + 1 })) }), []);
+  const [state, setState] = React.useState<{ open: boolean; kind: Kind; movement?: Movement; key: number }>({ open: false, kind: "inflow", key: 0 });
+  const ctx = React.useMemo(
+    () => ({ open: (o: OpenOptions) => setState((s) => ({ open: true, kind: o.movement?.type ?? o.kind, movement: o.movement, key: s.key + 1 })) }),
+    [],
+  );
   return (
     <DialogCtx value={ctx}>
       {children}
       <Dialog open={state.open} onOpenChange={(open) => setState((s) => ({ ...s, open }))}>
         <DialogContent aria-describedby={undefined}>
-          <MovementForm key={state.key} initialKind={state.kind} onDone={() => setState((s) => ({ ...s, open: false }))} />
+          <MovementForm key={state.key} initialKind={state.kind} editing={state.movement} onDone={() => setState((s) => ({ ...s, open: false }))} />
         </DialogContent>
       </Dialog>
     </DialogCtx>
@@ -51,9 +58,9 @@ const PERIODS: { value: RecurrencePeriod | "none"; label: string }[] = [
 function Field({ label, required, children, hint }: { label: string; required?: boolean; children: React.ReactNode; hint?: string }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-[13px] font-medium">
+      <span className="block text-[13px] font-medium">
         {label}
-        {required && <span className="text-success"> *</span>}
+        {required && <span className="text-brand"> *</span>}
       </span>
       {children}
       {hint && <span className="block text-[11.5px] text-muted-foreground">{hint}</span>}
@@ -64,29 +71,49 @@ function Field({ label, required, children, hint }: { label: string; required?: 
 const inputClass =
   "h-8 w-full rounded-md border border-input bg-card px-2.5 text-[13px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40";
 
-/** Converte "1.234,56" → 1234.56 */
-function parseMoney(s: string): number {
-  const v = Number(s.replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
-  return Number.isFinite(v) ? v : 0;
-}
+const money = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () => void }) {
-  const { data, today, reload } = useFinance();
+/** Máscara de dinheiro estilo app de banco: os dígitos digitados viram centavos. */
+function maskMoney(raw: string): string {
+  const digits = raw.replace(/\D/g, "").replace(/^0+/, "").slice(0, 13);
+  return digits ? money.format(Number(digits) / 100) : "";
+}
+const parseMoney = (s: string) => Number(s.replace(/\D/g, "") || 0) / 100;
+
+/** Próximas datas de uma série (inclui a primeira). */
+function occurrences(start: ISODate, period: RecurrencePeriod, count: number): ISODate[] {
+  const out: ISODate[] = [];
+  for (let i = 0; i < count; i++) {
+    if (period === "daily") out.push(addDays(start, i));
+    else if (period === "weekly") out.push(addDays(start, 7 * i));
+    else if (period === "biweekly") out.push(addDays(start, 14 * i));
+    else out.push(addMonths(start, i * { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }[period]));
+  }
+  return out;
+}
+/** Quantos lançamentos gerar adiantado para uma série sem fim (~12 meses). */
+const HORIZON: Record<RecurrencePeriod, number> = { daily: 31, weekly: 52, biweekly: 26, monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
+
+function MovementForm({ initialKind, editing, onDone }: { initialKind: Kind; editing?: Movement; onDone: () => void }) {
+  const { data, today, reload, applyLocal } = useFinance();
+  const toast = useToast();
   const [kind, setKind] = React.useState<Kind>(initialKind);
   const [tab, setTab] = React.useState<"dados" | "recorrencia" | "adicionais" | "documentos">("dados");
-  const [amount, setAmount] = React.useState("");
-  const [date, setDate] = React.useState(today);
-  const [paid, setPaid] = React.useState(false);
-  const [description, setDescription] = React.useState("");
-  const [categoryId, setCategoryId] = React.useState("");
-  const [accountId, setAccountId] = React.useState("");
+  const [amount, setAmount] = React.useState(editing ? money.format(editing.amount) : "");
+  const [date, setDate] = React.useState(editing?.date ?? today);
+  const [paid, setPaid] = React.useState(editing?.paid ?? false);
+  const [description, setDescription] = React.useState(editing?.description ?? "");
+  const [categoryId, setCategoryId] = React.useState(editing?.categoryId ?? "");
+  const [accountId, setAccountId] = React.useState(editing?.bankAccountId ?? (data?.accounts.length === 1 ? data.accounts[0].id : ""));
   const [destAccountId, setDestAccountId] = React.useState("");
-  const [competence, setCompetence] = React.useState<string | null>(null);
-  const [contactId, setContactId] = React.useState("");
+  const [competence, setCompetence] = React.useState<string | null>(editing && editing.competenceDate !== editing.date ? editing.competenceDate : null);
+  const [contactId, setContactId] = React.useState(editing?.contactId ?? "");
   const [period, setPeriod] = React.useState<RecurrencePeriod | "none">("none");
-  const [documentNumber, setDocumentNumber] = React.useState("");
-  const [notes, setNotes] = React.useState("");
+  const [repeatCount, setRepeatCount] = React.useState("");
+  const [documentNumber, setDocumentNumber] = React.useState(editing?.documentNumber ?? "");
+  const [notes, setNotes] = React.useState(editing?.notes ?? "");
   const [saving, setSaving] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
   const isIn = kind === "inflow";
@@ -109,41 +136,76 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
     } else if (!description.trim() || !categoryId || !accountId) {
       return setMessage("Preencha descrição, categoria e conta.");
     }
-    if (!supabaseConfigured) return setMessage("Modo de demonstração: conecte o Supabase para gravar lançamentos.");
     setSaving(true);
-    const sb = createClient();
-    const { error } =
-      kind === "transfer"
-        ? await sb.from("transfers").insert({
-            date,
-            amount: value,
-            description: description.trim() || "Transferência",
-            source_account_id: accountId,
-            destination_account_id: destAccountId,
-          })
-        : await sb.from("movements").insert({
-            type: kind,
-            date,
-            competence_date: competence ?? date,
-            due_date: date,
-            amount: value,
-            description: description.trim(),
-            bank_account_id: accountId,
-            category_id: categoryId,
-            contact_id: contactId || null,
-            paid,
-            document_number: documentNumber || null,
-            notes: notes || null,
-            origin: "web",
+    try {
+      if (kind === "transfer") {
+        await insertTransfer({ date, amount: value, description: description.trim() || "Transferência", sourceAccountId: accountId, destinationAccountId: destAccountId });
+      } else {
+        const base = {
+          type: kind,
+          date,
+          competenceDate: competence ?? date,
+          dueDate: date,
+          amount: value,
+          description: description.trim(),
+          bankAccountId: accountId,
+          categoryId,
+          contactId: contactId || null,
+          paid,
+          documentNumber: documentNumber.trim() || null,
+          notes: notes.trim() || null,
+        };
+        if (editing) {
+          applyLocal((d) => ({ ...d, movements: d.movements.map((m) => (m.id === editing.id ? { ...m, ...base } : m)) }));
+          await updateMovement(editing.id, base);
+        } else if (period === "none") {
+          await insertMovements([{ ...base, recurrenceId: null, installment: 0, totalInstallments: 0 }]);
+        } else {
+          const quantity = repeatCount ? Math.max(2, Number(repeatCount)) : null;
+          const dates = occurrences(date, period, quantity ?? HORIZON[period]);
+          const recurrenceId = await insertRecurrence({
+            type: kind, startDate: date, amount: value, period, quantity, fixed: true, active: true,
+            nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId,
+            contactId: contactId || null, description: base.description,
           });
-    setSaving(false);
-    if (error) return setMessage(error.message);
-    await reload();
-    if (keepOpen) {
-      setAmount("");
-      setDescription("");
-      setMessage("Lançamento adicionado.");
-    } else onDone();
+          await insertMovements(
+            dates.map((d, i) => ({
+              ...base, date: d, dueDate: d, competenceDate: d, paid: i === 0 && paid, recurrenceId,
+              installment: quantity ? i + 1 : 0, totalInstallments: quantity ?? 0,
+            })),
+          );
+        }
+      }
+      await reload();
+      toast({ tone: "success", title: editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
+      if (keepOpen) {
+        setAmount("");
+        setDescription("");
+        setDocumentNumber("");
+        setNotes("");
+      } else onDone();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Não foi possível salvar.");
+      if (editing) await reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!editing) return;
+    if (!confirmDelete) return setConfirmDelete(true);
+    setSaving(true);
+    try {
+      await deleteMovements([editing.id]);
+      applyLocal((d) => ({ ...d, movements: d.movements.filter((m) => m.id !== editing.id) }));
+      toast({ tone: "success", title: "Lançamento excluído" });
+      onDone();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Não foi possível excluir.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -153,7 +215,7 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
         void submit(false);
       }}
     >
-      <DialogTitle className="sr-only">{isIn ? "Conta a receber" : kind === "outflow" ? "Conta a pagar" : "Transferência"}</DialogTitle>
+      <DialogTitle className="sr-only">{editing ? "Editar lançamento" : isIn ? "Conta a receber" : kind === "outflow" ? "Conta a pagar" : "Transferência"}</DialogTitle>
       <DialogDescription className="sr-only">Preencha os dados do lançamento.</DialogDescription>
       <div className="px-5 pt-4">
         <div className="inline-flex rounded-lg bg-muted p-0.5">
@@ -163,7 +225,9 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
               ["outflow", "Conta a pagar"],
               ["transfer", "Transferência"],
             ] as const
-          ).map(([k, label]) => (
+          )
+            .filter(([k]) => !editing || k !== "transfer")
+            .map(([k, label]) => (
             <button
               key={k}
               type="button"
@@ -190,7 +254,7 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
           <div className="rounded-xl border bg-card px-4 pb-2 pt-3 shadow-xs">
             <div className="text-[13px] font-medium">
               Valor {kind === "transfer" ? "da transferência" : `do ${noun}`}
-              <span className="text-success"> *</span>
+              <span className="text-brand"> *</span>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-[13px] font-medium text-muted-foreground">R$</span>
@@ -198,7 +262,7 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
                 autoFocus
                 inputMode="decimal"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(maskMoney(e.target.value))}
                 placeholder="0,00"
                 className="w-full bg-transparent text-[34px] font-light tracking-tight outline-none placeholder:text-muted-foreground/50 tabular"
               />
@@ -277,7 +341,7 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
               {(
                 [
                   ["dados", "Dados"],
-                  ["recorrencia", "Recorrência"],
+                  ...(editing ? [] : ([["recorrencia", "Recorrência"]] as const)),
                   ["adicionais", "Adicionais"],
                   ["documentos", "Documentos"],
                 ] as const
@@ -323,14 +387,29 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
                       onClick={() => setPeriod(p.value)}
                       className={cn(
                         "h-7 rounded-md border px-2.5 text-[12px] transition-colors",
-                        period === p.value ? "border-success/40 bg-success-soft font-medium text-success-foreground" : "hover:bg-accent",
+                        period === p.value ? "border-brand/40 bg-brand-soft font-medium text-brand-foreground" : "hover:bg-accent",
                       )}
                     >
                       {p.label}
                     </button>
                   ))}
                   {period !== "none" && (
-                    <p className="w-full pt-2 text-[12px] text-muted-foreground">A geração automática das próximas parcelas entra na Fase 3.</p>
+                    <div className="w-full space-y-3 pt-3 animate-pop-in">
+                      <Field label="Quantas vezes?" hint="Deixe vazio para repetir sem fim (o sistema gera os próximos 12 meses e vai completando).">
+                        <input
+                          inputMode="numeric"
+                          value={repeatCount}
+                          onChange={(e) => setRepeatCount(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                          placeholder="Sem fim"
+                          className={cn(inputClass, "w-32")}
+                        />
+                      </Field>
+                      <p className="rounded-lg bg-brand-soft px-3 py-2 text-[12px] text-brand-foreground">
+                        {repeatCount
+                          ? `Serão criados ${Math.max(2, Number(repeatCount))} lançamentos, numerados como parcelas.`
+                          : `Série sem fim: serão criados os próximos ${HORIZON[period as RecurrencePeriod]} lançamentos.`}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -357,22 +436,38 @@ function MovementForm({ initialKind, onDone }: { initialKind: Kind; onDone: () =
       </div>
 
       <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
-        <div className="flex flex-1 items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <Info className="size-3.5" />
+        {editing && (
+          <Button
+            type="button"
+            variant={confirmDelete ? "danger" : "ghost"}
+            size="md"
+            disabled={saving}
+            onClick={() => void remove()}
+            onBlur={() => setConfirmDelete(false)}
+            className={cn(!confirmDelete && "text-destructive-foreground")}
+          >
+            <Trash2 /> {confirmDelete ? "Confirmar exclusão" : "Excluir"}
+          </Button>
+        )}
+        <div className={cn("flex flex-1 items-center gap-1.5 text-[11.5px]", message ? "text-destructive-foreground" : "text-muted-foreground")} role="status">
+          <Info className="size-3.5 shrink-0" />
           {message ?? (
             <>
-              Campos com <span className="text-success">*</span> são obrigatórios
+              Campos com <span className="text-brand">*</span> são obrigatórios
             </>
           )}
         </div>
         <Button type="button" variant="outline" size="md" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="button" variant="soft" size="md" disabled={saving} onClick={() => void submit(true)}>
-          <Plus /> Adicionar e continuar
-        </Button>
+        {!editing && (
+          <Button type="button" variant="soft" size="md" disabled={saving} onClick={() => void submit(true)}>
+            <Plus /> Adicionar e continuar
+          </Button>
+        )}
         <Button type="submit" variant="primary" size="md" disabled={saving}>
-          Adicionar {noun}
+          {saving && <Loader2 className="animate-spin" />}
+          {editing ? "Salvar alterações" : `Adicionar ${noun}`}
         </Button>
       </div>
     </form>

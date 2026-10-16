@@ -1,7 +1,10 @@
+"use client";
+
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleAlert } from "lucide-react";
 import type * as React from "react";
 import { Card, Eyebrow } from "@/components/ui/primitives";
-import { splitBRL } from "@/lib/format";
+import { formatBRL, splitBRL } from "@/lib/format";
+import { useCountUp } from "./count-up";
 import { cn } from "@/lib/utils";
 
 type Tone = "success" | "danger" | "info" | "warning" | "neutral";
@@ -30,12 +33,15 @@ const VALUE: Record<Tone, string> = {
 export function KpiCard({
   label,
   value,
+  amount,
   sub,
   tone,
   icon,
 }: {
   label: string;
-  value: string;
+  /** Texto pronto, ou use `amount` para o valor em reais animado. */
+  value?: React.ReactNode;
+  amount?: number;
   sub?: React.ReactNode;
   tone: Tone;
   icon?: React.ReactNode;
@@ -48,7 +54,7 @@ export function KpiCard({
           {icon ?? (tone !== "neutral" && ICONS[tone])}
         </span>
       </div>
-      <div className={cn("mt-3 text-[24px] font-semibold tracking-tight tabular", VALUE[tone])}>{value}</div>
+      <div className={cn("mt-3 text-[24px] font-semibold tracking-tight tabular", VALUE[tone])}>{amount !== undefined ? <AnimatedBRL value={amount} /> : value}</div>
       {sub && <div className="mt-auto pt-2 text-[11.5px] text-muted-foreground">{sub}</div>}
     </Card>
   );
@@ -64,13 +70,18 @@ function Sparkline() {
   );
 }
 
-/** Card verde-escuro de destaque (Saldo atual, Total de lançamentos…). */
+/** Card de destaque na cor da marca (Saldo atual, Total de lançamentos…). */
+function AnimatedBRL({ value }: { value: number }) {
+  return <>{formatBRL(Math.round(useCountUp(value) * 100) / 100)}</>;
+}
+
 export function HeroCard({ label, amount, count, sub }: { label: string; amount?: number; count?: number; sub?: React.ReactNode }) {
-  const parts = amount !== undefined ? splitBRL(amount) : null;
+  const animated = useCountUp(amount ?? count ?? 0);
+  const parts = amount !== undefined ? splitBRL(Math.round(animated * 100) / 100) : null;
   return (
     <div
-      className="relative flex min-h-[132px] flex-col overflow-hidden rounded-xl p-5 text-white shadow-[0_8px_24px_-8px_rgb(15_59_46/0.55)] animate-pop-in"
-      style={{ background: "radial-gradient(120% 140% at 20% 0%, var(--hero-to) 0%, var(--hero-from) 60%)" }}
+      className="relative flex min-h-[132px] flex-col overflow-hidden rounded-xl p-5 text-white shadow-[0_10px_28px_-10px_rgb(227_95_32/0.6)] animate-pop-in"
+      style={{ background: "radial-gradient(120% 140% at 15% 0%, var(--hero-to) 0%, var(--hero-from) 65%)" }}
     >
       <div className="pointer-events-none absolute -right-10 -top-16 size-48 rounded-full bg-white/5 blur-2xl" />
       <Eyebrow className="text-white/75">{label}</Eyebrow>
@@ -82,7 +93,7 @@ export function HeroCard({ label, amount, count, sub }: { label: string; amount?
             <span className="text-[15px] text-white/70">,{parts.cents}</span>
           </>
         ) : (
-          <span className="text-[38px] font-light leading-none tracking-tight">{count}</span>
+          <span className="text-[38px] font-light leading-none tracking-tight">{Math.round(animated)}</span>
         )}
       </div>
       {sub && <div className="relative z-10 mt-auto pt-2 text-[11.5px] text-white/80">{sub}</div>}

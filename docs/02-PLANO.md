@@ -87,7 +87,10 @@ Saldos, DFC e séries do gráfico serão calculados por **views/funções SQL**,
 - [x] Fase 1 (parcial): projeto, tema claro/escuro, menu, filtros de conta e período, **Painel completo**, modal de lançamento
 - [x] Núcleo de cálculo com testes de paridade: saldos, KPIs, gráfico, DFC e categorias **batem com o original**
 - [x] Esquema do banco (`supabase/migrations/0001_init.sql`) e script de importação com conferência de saldos
-- [ ] Supabase criado + login + importação real
+- [x] Supabase criado, histórico importado com saldos conferidos, login e publicação na Vercel
+- [x] Identidade visual da Connect (laranja #E35F20 + logo) no lugar do verde do original
+- [x] **Movimentos**: busca (atalho `/`), filtros, ordenação, seleção em massa, editar/baixar/duplicar/excluir com "Desfazer", exportar CSV
+- [x] Modal de lançamento: edição, exclusão, máscara de valor, séries recorrentes e parceladas
 
 ## Preciso de você antes de começar
 1. **Supabase**: criar o projeto (ou me dizer qual usar) e liberar o acesso a ele aqui.

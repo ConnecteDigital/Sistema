@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CountPill, UnderlineTabs } from "@/components/ui/primitives";
 import { formatBRL, formatDayMonth } from "@/lib/format";
 import type { Movement, MovementType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useFinanceActions } from "./finance-actions";
 import { useMovementDialog } from "./movement-dialog";
 
 type Tab = "open" | "paid" | "overdue";
@@ -16,6 +17,7 @@ const PAGE = 10;
 export function LedgerPanel({ type, movements, today }: { type: MovementType; movements: Movement[]; today: string }) {
   const isIn = type === "inflow";
   const { open } = useMovementDialog();
+  const { setPaid, remove } = useFinanceActions();
   const [tab, setTab] = React.useState<Tab>("open");
   const [page, setPage] = React.useState(0);
 
@@ -94,7 +96,20 @@ export function LedgerPanel({ type, movements, today }: { type: MovementType; mo
                   )}
                 </td>
                 <td className="py-2.5 pr-2 text-right">
-                  <span className={cn("font-semibold tabular", valueColor)}>{formatBRL(m.amount)}</span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className={cn("font-semibold tabular", valueColor)}>{formatBRL(m.amount)}</span>
+                    <span className="flex w-0 gap-0.5 overflow-hidden opacity-0 transition-all duration-200 group-hover:w-[72px] group-hover:opacity-100 group-focus-within:w-[72px] group-focus-within:opacity-100">
+                      <button onClick={() => void setPaid([m.id], !m.paid)} className="rounded p-1 text-muted-foreground hover:bg-success-soft hover:text-success-foreground" title={m.paid ? "Desfazer baixa" : isIn ? "Marcar como recebido" : "Marcar como pago"}>
+                        {m.paid ? <RotateCcw className="size-3.5" /> : <Check className="size-3.5" />}
+                      </button>
+                      <button onClick={() => open({ kind: m.type, movement: m })} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Editar">
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button onClick={() => void remove([m])} className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-destructive-foreground" title="Excluir">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </span>
+                  </div>
                 </td>
               </tr>
             );

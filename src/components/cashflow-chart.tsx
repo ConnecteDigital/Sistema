@@ -83,8 +83,8 @@ export function CashflowChart({ points, mode, today, height = 260 }: { points: D
           <AreaChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="saldoFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-in)" stopOpacity={0.16} />
-                <stop offset="100%" stopColor="var(--chart-in)" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="var(--chart-balance)" stopOpacity={0.22} />
+                <stop offset="100%" stopColor="var(--chart-balance)" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             {grid}
@@ -92,7 +92,7 @@ export function CashflowChart({ points, mode, today, height = 260 }: { points: D
             {y}
             {tooltip}
             {todayLine}
-            <Area type="monotone" dataKey="balance" name="Saldo em caixa" stroke="var(--chart-in)" strokeWidth={2} fill="url(#saldoFill)" dot={false} activeDot={{ r: 4 }} />
+            <Area type="monotone" dataKey="balance" name="Saldo em caixa" stroke="var(--chart-balance)" strokeWidth={2} fill="url(#saldoFill)" dot={false} activeDot={{ r: 4 }} />
           </AreaChart>
         ) : mode === "barras" ? (
           <BarChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 0 }} barGap={2}>
@@ -125,7 +125,7 @@ export function ChartLegend({ mode }: { mode: ChartMode }) {
     <div className="flex items-center gap-4 text-[11.5px] text-muted-foreground">
       {mode === "saldo" ? (
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-3 rounded bg-[var(--chart-in)]" /> Saldo em caixa (só o que foi baixado)
+          <span className="h-0.5 w-3 rounded bg-[var(--chart-balance)]" /> Saldo em caixa (só o que foi baixado)
         </span>
       ) : (
         <>

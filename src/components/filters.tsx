@@ -36,7 +36,7 @@ export function AccountFilter() {
             <div className="text-[13px] font-medium">Contas</div>
             <div className="text-[11.5px] text-muted-foreground">{accounts.length} contas</div>
           </div>
-          <button className="text-[12px] font-medium text-success-foreground" onClick={() => setAccountIds([])}>
+          <button className="text-[12px] font-medium text-brand-foreground" onClick={() => setAccountIds([])}>
             Selecionar todas
           </button>
         </div>
@@ -97,7 +97,7 @@ function MonthGrid({ month, range, onPick }: { month: ISODate; range: DateRange;
               className={cn(
                 "h-7 text-[12px] tabular transition-colors",
                 out && "text-muted-foreground/50",
-                inside && "bg-success-soft",
+                inside && "bg-brand-soft",
                 edge ? "rounded-md bg-primary font-medium text-primary-foreground" : "rounded-md hover:bg-accent",
               )}
             >

@@ -70,18 +70,18 @@ export default function PainelPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <HeroCard label="Saldo atual" amount={summary.current} sub={`Projeção · ${formatBRL(summary.projection)}`} />
-        <KpiCard label="Recebidos" tone="success" value={formatBRL(summary.received)} sub={`Previsto · ${formatBRL(summary.openInflows)}`} />
-        <KpiCard label="Despesas" tone="danger" value={formatBRL(summary.spent)} sub={`Previsto · ${formatBRL(summary.openOutflows)}`} />
+        <KpiCard label="Recebidos" tone="success" amount={summary.received} sub={`Previsto · ${formatBRL(summary.openInflows)}`} />
+        <KpiCard label="Despesas" tone="danger" amount={summary.spent} sub={`Previsto · ${formatBRL(summary.openOutflows)}`} />
         <KpiCard
           label="Transferências"
           tone="info"
-          value={formatBRL(summary.transfers)}
+          amount={summary.transfers}
           sub={`${summary.transfersCount} ${summary.transfersCount === 1 ? "transferência" : "transferências"} entre contas`}
         />
         <KpiCard
           label="Vencidos · ação"
           tone="warning"
-          value={formatBRL(summary.overdueOutflows)}
+          amount={summary.overdueOutflows}
           sub={`${summary.overdueOutflowsCount} ${summary.overdueOutflowsCount === 1 ? "item pendente" : "itens pendentes"}`}
         />
       </div>
@@ -113,7 +113,7 @@ export default function PainelPage() {
           </ul>
           <div className="mt-6 flex items-center justify-between bg-muted px-5 py-4">
             <span className="text-eyebrow uppercase text-muted-foreground">Total disponível</span>
-            <span className="text-[16px] font-semibold text-primary tabular dark:text-success-foreground">{formatBRL(selectedTotal)}</span>
+            <span className="text-[16px] font-semibold text-brand-foreground tabular">{formatBRL(selectedTotal)}</span>
           </div>
         </Card>
 

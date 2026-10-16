@@ -42,9 +42,10 @@ export default function LoginPage() {
     <div className="grid min-h-dvh lg:grid-cols-[480px_1fr]">
       <aside
         className="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex"
-        style={{ background: "radial-gradient(70% 45% at 75% 12%, #0b6b4c 0%, transparent 70%), radial-gradient(60% 40% at 0% 100%, #0b5a40 0%, transparent 70%), #0f3b2e" }}
+        style={{ background: "radial-gradient(70% 45% at 80% 10%, rgb(227 95 32 / 0.55) 0%, transparent 70%), radial-gradient(60% 40% at 0% 100%, rgb(227 95 32 / 0.3) 0%, transparent 70%), #0d0d0d" }}
       >
-        <div className="grid size-10 place-items-center rounded-lg bg-amber-400 text-sm font-bold text-amber-950">CD</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.svg" alt="Connect Digital" className="size-12" />
         <div>
           <h1 className="font-display text-[44px] leading-[1.05] tracking-tight">
             Fluxo de caixa
@@ -60,7 +61,7 @@ export default function LoginPage() {
 
       <main className="flex items-center justify-center px-6 py-12">
         <form onSubmit={signIn} className="w-full max-w-[400px] animate-pop-in">
-          <div className="text-eyebrow uppercase text-success">Connect Financeiro</div>
+          <div className="text-eyebrow uppercase text-brand">Connect Financeiro</div>
           <h2 className="mt-2 font-display text-[34px] leading-tight tracking-tight">Bem-vindo de volta</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">Entre com seu e-mail e senha para acessar sua conta.</p>
 
@@ -71,7 +72,7 @@ export default function LoginPage() {
           <label className="mt-4 block space-y-1.5">
             <span className="flex items-center justify-between text-[13px] font-medium">
               Senha
-              <button type="button" onClick={resetPassword} className="font-normal text-success-foreground hover:underline">
+              <button type="button" onClick={resetPassword} className="font-normal text-brand-foreground hover:underline">
                 Esqueci a senha
               </button>
             </span>

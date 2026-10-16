@@ -5,23 +5,26 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tokens extraídos do sistema de referência (verde da marca #0f3b2e). */
+/* Layout e tokens do sistema de referência, com a cor da Connect Digital (laranja #E35F20). */
 :root {
-  --brand: #0f3b2e;
-  --background: color-mix(in srgb, #fff 97%, var(--brand));
+  --brand: #e35f20;
+  --brand-strong: #c94f17;
+  --brand-soft: color-mix(in srgb, #e35f20 12%, #fff);
+  --brand-foreground: #b4430f;
+  --background: color-mix(in srgb, #fff 98%, var(--brand));
   --foreground: #262626;
   --card: #ffffff;
   --card-foreground: #262626;
   --popover: #ffffff;
-  --primary: var(--brand);
-  --primary-foreground: #fafafa;
+  --primary: var(--brand-strong);
+  --primary-foreground: #ffffff;
   --muted: color-mix(in oklab, #000 4%, transparent);
   --muted-foreground: #6b6b6b;
   --accent: color-mix(in oklab, #000 4%, transparent);
   --border: color-mix(in oklab, #000 8%, transparent);
   --input: color-mix(in oklab, #000 12%, transparent);
   --ring: #a3a3a3;
-  --sidebar: color-mix(in srgb, #fafafa 94%, var(--brand));
+  --sidebar: color-mix(in srgb, #fafafa 96%, var(--brand));
   --sidebar-foreground: #5c605e;
   --sidebar-accent: color-mix(in oklab, #000 5%, transparent);
   --sidebar-border: color-mix(in oklab, #000 6%, transparent);
@@ -35,26 +38,29 @@
   --info: #3b82f6;
   --info-foreground: #2563eb;
   --info-soft: color-mix(in srgb, #3b82f6 14%, var(--background));
-  --warning: #f59e0b;
-  --warning-foreground: #b45309;
+  --warning: #eab308;
+  --warning-foreground: #a16207;
   --warning-soft: color-mix(in srgb, #f59e0b 16%, var(--background));
 
-  --hero-from: #0f3b2e;
-  --hero-to: #1a5a45;
-  --chart-in: #0f3b2e;
-  --chart-out: #fb2c36;
-  --chart-line: #1b8d5f;
+  --hero-from: #c94f17;
+  --hero-to: #f07a3c;
+  --chart-balance: #e35f20;
+  --chart-in: #15803d;
+  --chart-out: #ef4444;
   --radius: 0.625rem;
 }
 
 .dark {
-  --brand: #178a5a;
-  --background: #161616;
+  --brand: #e35f20;
+  --brand-strong: #e35f20;
+  --brand-soft: color-mix(in srgb, #e35f20 18%, #121212);
+  --brand-foreground: #f4874f;
+  --background: #111111;
   --foreground: #ececec;
-  --card: #1c1c1c;
+  --card: #191919;
   --card-foreground: #ececec;
   --popover: #1f1f1f;
-  --primary: #178a5a;
+  --primary: var(--brand-strong);
   --primary-foreground: #ffffff;
   --muted: color-mix(in oklab, #fff 5%, transparent);
   --muted-foreground: #9a9a9a;
@@ -62,7 +68,7 @@
   --border: color-mix(in oklab, #fff 8%, transparent);
   --input: color-mix(in oklab, #fff 12%, transparent);
   --ring: #525252;
-  --sidebar: #191919;
+  --sidebar: #141414;
   --sidebar-foreground: #b5b5b5;
   --sidebar-accent: color-mix(in oklab, #fff 6%, transparent);
   --sidebar-border: color-mix(in oklab, #fff 7%, transparent);
@@ -72,9 +78,10 @@
   --destructive-foreground: #f87171;
   --info-foreground: #60a5fa;
   --warning-foreground: #fbbf24;
-  --hero-from: #0f3b2e;
-  --hero-to: #14513d;
-  --chart-in: #1b8d5f;
+  --hero-from: #b4430f;
+  --hero-to: #e35f20;
+  --chart-in: #22c55e;
+  --warning: #facc15;
 }
 
 @theme inline {
@@ -86,6 +93,9 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-foreground: var(--brand-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-muted: var(--muted);
@@ -122,11 +132,26 @@
   --text-eyebrow--font-weight: 600;
   --animate-fade-in: fade-in 0.18s ease-out;
   --animate-pop-in: pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-toast-in: toast-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-row-in: row-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-flash: flash 1.2s ease-out;
 }
 
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes flash {
+  from { background-color: var(--brand-soft); }
+  to { background-color: transparent; }
 }
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(4px) scale(0.98); }

@@ -30,6 +30,7 @@ import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useFinance } from "../finance-provider";
 import { MovementDialogHost, useMovementDialog } from "../movement-dialog";
+import { ToastProvider } from "../toast";
 
 const NAV = [
   {
@@ -110,9 +111,8 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
       )}
     >
       <div className="flex items-center gap-2.5 px-3 pb-2 pt-3">
-        <div className="grid size-7 shrink-0 place-items-center rounded-md bg-amber-400 text-[11px] font-bold text-amber-950">
-          CD
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.svg" alt="Connect Digital" className="size-7 shrink-0" />
         {!collapsed && (
           <>
             <div className="min-w-0 flex-1 leading-tight">
@@ -171,7 +171,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
           {!collapsed && "Configurações"}
         </Link>
         <div className={cn("flex items-center gap-2.5 rounded-md px-2 py-1.5", collapsed && "justify-center px-0")}>
-          <div className="grid size-7 shrink-0 place-items-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground">
+          <div className="grid size-7 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-foreground">
             <Building2 className="size-3.5" />
           </div>
           {!collapsed && (
@@ -207,6 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { dark, toggle } = useTheme();
   const toggleSidebar = () => setSidebar(collapsed ? "open" : "collapsed");
   return (
+    <ToastProvider>
     <MovementDialogHost>
       <div className="flex min-h-dvh">
         <Sidebar collapsed={collapsed} />
@@ -227,5 +228,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </MovementDialogHost>
+    </ToastProvider>
   );
 }

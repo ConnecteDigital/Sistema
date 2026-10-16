@@ -108,6 +108,19 @@ export interface Movement {
   totalInstallments: number;
   documentNumber: string | null;
   notes: string | null;
+  /** De onde veio: "card:<id>" (compra no cartão), "ofx:<fitid>" (extrato importado)… */
+  origin?: string | null;
+}
+
+export interface CreditCard {
+  id: string;
+  name: string;
+  brand: string | null;
+  limit: number;
+  closingDay: number;
+  dueDay: number;
+  payerAccountId: string | null;
+  autoDebit: boolean;
 }
 
 export interface Transfer {
@@ -128,6 +141,7 @@ export interface FinanceData {
   recurrences: Recurrence[];
   movements: Movement[];
   transfers: Transfer[];
+  cards: CreditCard[];
 }
 
 export interface DateRange {

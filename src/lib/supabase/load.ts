@@ -17,7 +17,7 @@ const num = (v: unknown) => Number(v ?? 0);
 const str = (v: unknown) => (v == null ? null : String(v));
 
 export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> {
-  const [company, accounts, groups, categories, contacts, recurrences, movements, transfers] = await Promise.all([
+  const [company, accounts, groups, categories, contacts, recurrences, movements, transfers, cards] = await Promise.all([
     sb.from("company").select("name").maybeSingle(),
     all<Row>(sb, "bank_accounts"),
     all<Row>(sb, "category_groups"),
@@ -26,6 +26,7 @@ export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> 
     all<Row>(sb, "recurrences"),
     all<Row>(sb, "movements"),
     all<Row>(sb, "transfers"),
+    all<Row>(sb, "credit_cards"),
   ]);
   return {
     companyName: (company.data?.name as string) ?? "Connect Digital",
@@ -100,6 +101,7 @@ export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> 
       totalInstallments: num(r.total_installments),
       documentNumber: str(r.document_number),
       notes: str(r.notes),
+      origin: str(r.origin),
     })),
     transfers: transfers.map((r) => ({
       id: r.id,
@@ -108,6 +110,16 @@ export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> 
       description: String(r.description ?? ""),
       sourceAccountId: String(r.source_account_id),
       destinationAccountId: String(r.destination_account_id),
+    })),
+    cards: cards.map((r) => ({
+      id: r.id,
+      name: String(r.name),
+      brand: str(r.brand),
+      limit: num(r.credit_limit),
+      closingDay: num(r.closing_day),
+      dueDay: num(r.due_day),
+      payerAccountId: str(r.payer_account_id),
+      autoDebit: Boolean(r.auto_debit),
     })),
   };
 }

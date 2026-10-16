@@ -253,7 +253,7 @@ export function convertLegacyExport(src: LegacyExport, newId: () => string = () 
   });
 
   return {
-    data: { companyName: src.workspace.name.trim(), accounts, groups, categories, contacts, recurrences, movements, transfers },
+    data: { companyName: src.workspace.name.trim(), accounts, groups, categories, contacts, recurrences, movements, transfers, cards: [] },
     legacyKeys: { contacts: contactKeys, recurrences: recurrenceKeys },
     warnings,
   };

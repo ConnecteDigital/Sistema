@@ -1,5 +1,5 @@
 import { createClient, supabaseConfigured } from "./supabase/client";
-import type { CategoryGroup, Movement, Recurrence, Transfer } from "./types";
+import type { CategoryGroup, CreditCard, Movement, Recurrence, Transfer } from "./types";
 
 export class DemoModeError extends Error {
   constructor() {
@@ -31,6 +31,7 @@ function toRow(m: Partial<MovementInput>) {
   if (m.totalInstallments !== undefined) row.total_installments = m.totalInstallments;
   if (m.documentNumber !== undefined) row.document_number = m.documentNumber;
   if (m.notes !== undefined) row.notes = m.notes;
+  if (m.origin !== undefined) row.origin = m.origin;
   return row;
 }
 
@@ -41,7 +42,7 @@ async function check<T>(p: PromiseLike<{ data: T; error: { message: string } | n
 }
 
 export async function insertMovements(items: MovementInput[]): Promise<string[]> {
-  const rows = await check(db().from("movements").insert(items.map((m) => ({ ...toRow(m), origin: "web" }))).select("id"));
+  const rows = await check(db().from("movements").insert(items.map((m) => ({ ...toRow(m), origin: m.origin ?? "web" }))).select("id"));
   return (rows as { id: string }[]).map((r) => r.id);
 }
 
@@ -80,7 +81,7 @@ export async function deleteTransfer(id: string) {
 
 /** Reinsere lançamentos excluídos mantendo os mesmos ids (usado no "Desfazer"). */
 export async function restoreMovements(items: Movement[]) {
-  await check(db().from("movements").insert(items.map((m) => ({ id: m.id, ...toRow(m), origin: "web" }))));
+  await check(db().from("movements").insert(items.map((m) => ({ id: m.id, ...toRow(m), origin: m.origin ?? "web" }))));
 }
 
 export async function insertRecurrence(r: Omit<Recurrence, "id">): Promise<string> {
@@ -270,4 +271,35 @@ export async function deleteCategory(id: string, moveTo: string | null) {
 /** Grava a nova ordem (position = índice). */
 export async function reorder(table: "categories" | "category_groups", ids: string[]) {
   await Promise.all(ids.map((id, position) => check(db().from(table).update({ position }).eq("id", id))));
+}
+
+/* ---------------- Cartões de crédito ---------------- */
+
+export type CardInput = Omit<CreditCard, "id">;
+
+const cardRow = (c: Partial<CardInput>) => {
+  const row: Record<string, unknown> = {};
+  if (c.name !== undefined) row.name = c.name;
+  if (c.brand !== undefined) row.brand = c.brand;
+  if (c.limit !== undefined) row.credit_limit = c.limit;
+  if (c.closingDay !== undefined) row.closing_day = c.closingDay;
+  if (c.dueDay !== undefined) row.due_day = c.dueDay;
+  if (c.payerAccountId !== undefined) row.payer_account_id = c.payerAccountId;
+  if (c.autoDebit !== undefined) row.auto_debit = c.autoDebit;
+  return row;
+};
+
+export async function insertCard(c: CardInput): Promise<string> {
+  const row = await check(db().from("credit_cards").insert(cardRow(c)).select("id").single());
+  return (row as { id: string }).id;
+}
+
+export async function updateCard(id: string, c: Partial<CardInput>) {
+  await check(db().from("credit_cards").update(cardRow(c)).eq("id", id));
+}
+
+/** Exclui o cartão; as compras já lançadas continuam como despesas comuns da conta pagadora. */
+export async function deleteCard(id: string) {
+  await check(db().from("movements").update({ origin: "web" }).eq("origin", `card:${id}`));
+  await check(db().from("credit_cards").delete().eq("id", id));
 }

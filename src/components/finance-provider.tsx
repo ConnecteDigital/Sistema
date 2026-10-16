@@ -4,7 +4,8 @@ import * as React from "react";
 import { monthRange, todayISO } from "@/lib/dates";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { loadFinanceData } from "@/lib/supabase/load";
-import { insertMovements } from "@/lib/mutations";
+import { autoDebitDue } from "@/lib/cards";
+import { insertMovements, setMovementsPaid } from "@/lib/mutations";
 import { missingOccurrences } from "@/lib/recurrence";
 import type { DateRange, FinanceData } from "@/lib/types";
 
@@ -62,9 +63,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       .then(async (d) => {
         // Completa as séries recorrentes sem fim (sempre 12 meses à frente).
         const missing = supabaseConfigured ? missingOccurrences(d, todayISO()) : [];
-        if (!missing.length) return d;
+        // Baixa as faturas de cartão em débito automático que já venceram.
+        const autoPaid = supabaseConfigured ? autoDebitDue(d, todayISO()) : [];
+        if (!missing.length && !autoPaid.length) return d;
         try {
           for (let i = 0; i < missing.length; i += 200) await insertMovements(missing.slice(i, i + 200));
+          if (autoPaid.length) await setMovementsPaid(autoPaid, true);
           return await fetchData();
         } catch {
           return d;

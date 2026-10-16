@@ -93,6 +93,15 @@ Saldos, DFC e séries do gráfico serão calculados por **views/funções SQL**,
 - [x] Modal de lançamento: edição, exclusão, máscara de valor, séries recorrentes e parceladas
 - [x] Cards clicáveis (Painel e Movimentos) que filtram a tela com animação
 - [x] **Relatórios**: demonstrativo (DFC) mês a mês com detalhamento, fluxo mensal (6/12/24m), categorias (despesas/receitas), exportar CSV e PDF
+- [x] **Recorrências**, **Contas bancárias** e **Extrato** por conta
+- [x] **Clientes e Fornecedores**: KPIs, busca por nome/CPF/CNPJ, cadastro com validação de CPF/CNPJ, consulta na Receita (BrasilAPI), CEP (ViaCEP) com código IBGE para a NFS-e, histórico, arquivar
+- [x] **Categorias**: grupos com cor e seção do demonstrativo, valores do período, arrastar para ordenar/mover, excluir movendo os lançamentos
+- [x] **Cartões**: limite, fechamento/vencimento, compras parceladas na fatura certa, pagar/reabrir fatura, débito automático (as parcelas são despesas da conta pagadora no vencimento, `origin = card:<id>`)
+- [x] **Conciliação**: importa OFX (Bradesco), casa com lançamentos/transferências/faturas, baixa em lote, lança o que falta lembrando a categoria do mesmo histórico, saldo banco × sistema
+- [x] **Configurações**: perfil (nome, senha), empresa (CNPJ), aparência, status da NFS-e, backup JSON
+- [ ] NFS-e (Saatri) — aguardando manual do webservice e certificado A1
+- [ ] Assistente de IA (opcional)
+- [ ] Domínio próprio
 
 ## Preciso de você antes de começar
 1. **Supabase**: criar o projeto (ou me dizer qual usar) e liberar o acesso a ele aqui.

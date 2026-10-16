@@ -250,14 +250,16 @@ function FocusView({
   range: DateRange;
   today: string;
 }) {
-  const { byContact, byCategory } = useRankings(movements);
+  // Rankings só com o que já foi recebido/pago (nos vencidos, tudo está em aberto por definição).
+  const ranked = React.useMemo(() => (initialTab === "overdue" ? movements : movements.filter((m) => m.paid)), [movements, initialTab]);
+  const { byContact, byCategory } = useRankings(ranked);
   const isIn = type === "inflow";
   return (
     <div className="mt-3 space-y-3">
       <DailyBreakdown type={type} movements={movements} range={range} today={today} title={isIn ? "Faturamento por dia" : "Despesas por dia"} />
       <div className="grid items-stretch gap-3 lg:grid-cols-2">
-        <RankingCard title={isIn ? "Por cliente" : "Por fornecedor"} rows={byContact} type={type} />
-        <RankingCard title="Por categoria" rows={byCategory} type={type} />
+        <RankingCard title={isIn ? "Por cliente" : "Por fornecedor"} subtitle={initialTab === "overdue" ? "Vencidos" : isIn ? "Só o que já foi recebido" : "Só o que já foi pago"} rows={byContact} type={type} />
+        <RankingCard title="Por categoria" subtitle={initialTab === "overdue" ? "Vencidos" : isIn ? "Só o que já foi recebido" : "Só o que já foi pago"} rows={byCategory} type={type} />
       </div>
       <LedgerPanel type={type} movements={allOfType} today={today} initialTab={initialTab} wide />
     </div>

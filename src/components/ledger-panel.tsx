@@ -47,11 +47,14 @@ export function LedgerPanel({
   const [page, setPage] = React.useState(0);
 
   const lists = React.useMemo(() => {
-    const desc = (a: Movement, b: Movement) => b.date.localeCompare(a.date);
+    // Em aberto e vencidos: do mais próximo para o mais distante (o de amanhã aparece logo no topo).
+    // Efetuados: do mais recente para o mais antigo.
+    const asc = (a: Movement, b: Movement) => a.date.localeCompare(b.date) || a.description.localeCompare(b.description, "pt-BR");
+    const desc = (a: Movement, b: Movement) => -asc(a, b);
     return {
-      open: movements.filter((m) => !m.paid).sort(desc),
+      open: movements.filter((m) => !m.paid).sort(asc),
       paid: movements.filter((m) => m.paid).sort(desc),
-      overdue: movements.filter((m) => !m.paid && m.date < today).sort(desc),
+      overdue: movements.filter((m) => !m.paid && m.date < today).sort(asc),
     };
   }, [movements, today]);
   const list = lists[tab];

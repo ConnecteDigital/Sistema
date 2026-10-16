@@ -103,7 +103,7 @@ export function DailyBreakdown({ type, movements, range, today, title }: { type:
 }
 
 /** Ranking com barras (por cliente/fornecedor ou por categoria), paginado. */
-export function RankingCard({ title, rows, type, pageSize = 8 }: { title: string; rows: { key: string; name: string; amount: number }[]; type: MovementType; pageSize?: number }) {
+export function RankingCard({ title, subtitle, rows, type, pageSize = 8 }: { title: string; subtitle?: string; rows: { key: string; name: string; amount: number }[]; type: MovementType; pageSize?: number }) {
   const [page, setPage] = React.useState(0);
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const visible = rows.slice(page * pageSize, page * pageSize + pageSize);
@@ -112,6 +112,7 @@ export function RankingCard({ title, rows, type, pageSize = 8 }: { title: string
   return (
     <Card className="flex flex-col p-5 animate-pop-in">
       <h2 className="text-[14px] font-semibold">{title}</h2>
+      {subtitle && <p className="text-[12px] text-muted-foreground">{subtitle} · {formatBRL(rows.reduce((t, r) => t + r.amount, 0))}</p>}
       <ul key={page} className="mt-4 flex-1 space-y-3.5">
         {visible.map((r, i) => (
           <li key={r.key} className="animate-row-in" style={{ animationDelay: `${i * 35}ms` }}>

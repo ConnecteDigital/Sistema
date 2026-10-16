@@ -69,7 +69,14 @@ Saldos, DFC e séries do gráfico serão calculados por **views/funções SQL**,
     provedor de API (NFE.io, Focus NFe, Nuvem Fiscal…), com custo mensal.
 19. Importar CPF/CNPJ e endereço dos clientes a partir do sistema da prefeitura (exportação/planilha),
     porque hoje nenhum cliente tem documento cadastrado.
-- A confirmar: cidade, sistema de emissão atual (Satre) e se o município já aceita o Emissor Nacional.
+- **Jaguaquara/BA (IBGE 2917607), sistema Saatri.** A nota de exemplo já sai no leiaute nacional 1.01
+  (gerada pelo município e compartilhada com o ambiente nacional). Serviço 17.06.01 (cTribNac 170601),
+  NBS 114061900, ISS 2%, Simples Nacional.
+- A Saatri tem webservice (padrão ABRASF) com autenticação por certificado ou login da prefeitura.
+  Opções, em ordem de custo: (a) integração direta com o webservice da Saatri, pedindo documentação e
+  autorização ao suporte deles; (b) provedor de API que já integra Jaguaquara (Focus NFe).
+- O menu "Exportar NFS-e (Nota Nacional)" do Saatri permite trazer **todas as notas já emitidas**:
+  com elas o sistema preenche CPF/CNPJ e endereço dos clientes e liga cada nota ao recebimento.
 - Open Finance / Pix automático (banco: Bradesco Empresas): **fora do escopo por enquanto**.
 
 ### Opcional depois

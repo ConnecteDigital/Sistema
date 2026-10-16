@@ -16,6 +16,8 @@ interface OpenOptions {
   kind: Kind;
   /** Lançamento a editar (omitir para criar um novo). */
   movement?: Movement;
+  /** Abre já na aba Recorrência, com repetição mensal. */
+  recurring?: boolean;
 }
 
 const DialogCtx = React.createContext<{ open: (o: OpenOptions) => void } | null>(null);
@@ -27,9 +29,9 @@ export function useMovementDialog() {
 }
 
 export function MovementDialogHost({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<{ open: boolean; kind: Kind; movement?: Movement; key: number }>({ open: false, kind: "inflow", key: 0 });
+  const [state, setState] = React.useState<{ open: boolean; kind: Kind; movement?: Movement; recurring?: boolean; key: number }>({ open: false, kind: "inflow", key: 0 });
   const ctx = React.useMemo(
-    () => ({ open: (o: OpenOptions) => setState((s) => ({ open: true, kind: o.movement?.type ?? o.kind, movement: o.movement, key: s.key + 1 })) }),
+    () => ({ open: (o: OpenOptions) => setState((s) => ({ open: true, kind: o.movement?.type ?? o.kind, movement: o.movement, recurring: o.recurring, key: s.key + 1 })) }),
     [],
   );
   return (
@@ -37,7 +39,7 @@ export function MovementDialogHost({ children }: { children: React.ReactNode }) 
       {children}
       <Dialog open={state.open} onOpenChange={(open) => setState((s) => ({ ...s, open }))}>
         <DialogContent aria-describedby={undefined}>
-          <MovementForm key={state.key} initialKind={state.kind} editing={state.movement} onDone={() => setState((s) => ({ ...s, open: false }))} />
+          <MovementForm key={state.key} initialKind={state.kind} editing={state.movement} recurring={state.recurring} onDone={() => setState((s) => ({ ...s, open: false }))} />
         </DialogContent>
       </Dialog>
     </DialogCtx>
@@ -94,11 +96,11 @@ function occurrences(start: ISODate, period: RecurrencePeriod, count: number): I
 /** Quantos lançamentos gerar adiantado para uma série sem fim (~12 meses). */
 const HORIZON: Record<RecurrencePeriod, number> = { daily: 31, weekly: 52, biweekly: 26, monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
 
-function MovementForm({ initialKind, editing, onDone }: { initialKind: Kind; editing?: Movement; onDone: () => void }) {
+function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind: Kind; editing?: Movement; recurring?: boolean; onDone: () => void }) {
   const { data, today, reload, applyLocal } = useFinance();
   const toast = useToast();
   const [kind, setKind] = React.useState<Kind>(initialKind);
-  const [tab, setTab] = React.useState<"dados" | "recorrencia" | "adicionais" | "documentos">("dados");
+  const [tab, setTab] = React.useState<"dados" | "recorrencia" | "adicionais" | "documentos">(recurring ? "recorrencia" : "dados");
   const [amount, setAmount] = React.useState(editing ? money.format(editing.amount) : "");
   const [date, setDate] = React.useState(editing?.date ?? today);
   const [paid, setPaid] = React.useState(editing?.paid ?? false);
@@ -108,7 +110,7 @@ function MovementForm({ initialKind, editing, onDone }: { initialKind: Kind; edi
   const [destAccountId, setDestAccountId] = React.useState("");
   const [competence, setCompetence] = React.useState<string | null>(editing && editing.competenceDate !== editing.date ? editing.competenceDate : null);
   const [contactId, setContactId] = React.useState(editing?.contactId ?? "");
-  const [period, setPeriod] = React.useState<RecurrencePeriod | "none">("none");
+  const [period, setPeriod] = React.useState<RecurrencePeriod | "none">(recurring ? "monthly" : "none");
   const [repeatCount, setRepeatCount] = React.useState("");
   const [documentNumber, setDocumentNumber] = React.useState(editing?.documentNumber ?? "");
   const [notes, setNotes] = React.useState(editing?.notes ?? "");

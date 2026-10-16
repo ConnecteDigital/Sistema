@@ -7,6 +7,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { convertLegacyExport, verifyBalances, type LegacyExport } from "./legacy-import";
+import { missingOccurrences, recurrenceSummary, seriesStats } from "./recurrence";
 import {
   accountBalances,
   cashflowStatement,
@@ -82,5 +83,18 @@ run("paridade com o FCS (export de 15/10/2026)", () => {
     const r = expensesByCategory(data, all, year);
     expect(r.rows[0]).toMatchObject({ name: "Retirada de lucro", amount: 148500 });
     expect(r.total).toBe(311120.21);
+  });
+  it("recorrências", () => {
+    const stats = seriesStats(data, today);
+    const count = (st: string) => stats.filter((s) => s.status === st).length;
+    expect([count("active"), count("overdue"), count("completed"), count("canceled")]).toEqual([38, 4, 1, 113]);
+    const sum = recurrenceSummary(stats);
+    expect(sum.inflowMonthly).toBe(33384.82);
+    expect(sum.outflowMonthly).toBe(25858.17);
+    expect(sum.result).toBe(7526.65);
+    expect(sum.receivable).toBe(409550);
+    expect(sum.payable).toBe(307347.8);
+    expect(sum.overdueAmount).toBe(3950);
+    expect(missingOccurrences(data, today)).toEqual([]);
   });
 });

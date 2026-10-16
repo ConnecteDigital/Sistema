@@ -106,3 +106,43 @@ export async function insertRecurrence(r: Omit<Recurrence, "id">): Promise<strin
   );
   return (row as { id: string }).id;
 }
+
+export interface RecurrencePatch {
+  description?: string;
+  amount?: number;
+  categoryId?: string | null;
+  contactId?: string | null;
+  bankAccountId?: string | null;
+}
+
+/** Atualiza a série e, se pedido, os lançamentos dela ainda em aberto a partir de `fromDate`. */
+export async function updateRecurrence(id: string, patch: RecurrencePatch, applyFrom: string | null) {
+  const sb = db();
+  const row: Record<string, unknown> = {};
+  if (patch.description !== undefined) row.description = patch.description;
+  if (patch.amount !== undefined) row.amount = patch.amount;
+  if (patch.categoryId !== undefined) row.category_id = patch.categoryId;
+  if (patch.contactId !== undefined) row.contact_id = patch.contactId;
+  if (patch.bankAccountId !== undefined) row.bank_account_id = patch.bankAccountId;
+  await check(sb.from("recurrences").update(row).eq("id", id));
+  if (applyFrom) {
+    const m: Record<string, unknown> = {};
+    if (patch.description !== undefined) m.description = patch.description;
+    if (patch.amount !== undefined) m.amount = patch.amount;
+    if (patch.categoryId !== undefined) m.category_id = patch.categoryId;
+    if (patch.contactId !== undefined) m.contact_id = patch.contactId;
+    if (patch.bankAccountId) m.bank_account_id = patch.bankAccountId;
+    await check(sb.from("movements").update(m).eq("recurrence_id", id).eq("paid", false).gte("date", applyFrom));
+  }
+}
+
+/** Encerra a série; opcionalmente apaga os lançamentos futuros ainda em aberto. */
+export async function cancelRecurrence(id: string, deleteFrom: string | null) {
+  const sb = db();
+  await check(sb.from("recurrences").update({ active: false }).eq("id", id));
+  if (deleteFrom) await check(sb.from("movements").delete().eq("recurrence_id", id).eq("paid", false).gte("date", deleteFrom));
+}
+
+export async function reactivateRecurrence(id: string) {
+  await check(db().from("recurrences").update({ active: true }).eq("id", id));
+}

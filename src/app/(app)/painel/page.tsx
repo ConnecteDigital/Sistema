@@ -51,7 +51,7 @@ export default function PainelPage() {
       minPoint,
       inflows: ms.filter((m) => m.type === "inflow"),
       outflows: ms.filter((m) => m.type === "outflow"),
-      transfers: transfersIn(data, s, range).sort((a, b) => b.date.localeCompare(a.date)),
+      transfers: transfersIn(data, s, range).sort((a, b) => a.date.localeCompare(b.date)),
     };
   }, [data, accountIds, range, today]);
 

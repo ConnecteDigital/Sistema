@@ -91,7 +91,7 @@ export default function MovimentosPage() {
   const [query, setQuery] = React.useState("");
   const [type, setType] = React.useState<TypeFilter>("all");
   const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date", dir: "desc" });
+  const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date", dir: "asc" });
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [showTransfers, setShowTransfers] = React.useState(false);
@@ -182,7 +182,7 @@ export default function MovimentosPage() {
   const allOnPage = rows.length > 0 && rows.every((m) => selected.has(m.id));
 
   const toggleSort = (key: SortKey) =>
-    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "description" ? "asc" : "desc" }));
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "amount" ? "desc" : "asc" }));
 
   const exportCSV = () => {
     const csv = toCSV(filtered, {
@@ -284,7 +284,7 @@ export default function MovimentosPage() {
 
       {showTransfers ? (
         <div className="mt-3 grid">
-          <TransfersPanel transfers={[...transfers].sort((a, b) => b.date.localeCompare(a.date))} accountName={(id) => lookups.account.get(id)?.name ?? "—"} />
+          <TransfersPanel transfers={[...transfers].sort((a, b) => a.date.localeCompare(b.date))} accountName={(id) => lookups.account.get(id)?.name ?? "—"} />
         </div>
       ) : (
       <Card key={cardFocus ?? "all"} className="mt-3 overflow-hidden animate-pop-in">

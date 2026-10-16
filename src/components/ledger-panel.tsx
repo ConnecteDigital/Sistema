@@ -47,13 +47,11 @@ export function LedgerPanel({
   const [page, setPage] = React.useState(0);
 
   const lists = React.useMemo(() => {
-    // Em aberto e vencidos: do mais próximo para o mais distante (o de amanhã aparece logo no topo).
-    // Efetuados: do mais recente para o mais antigo.
+    // Todas as abas em ordem de data, da mais próxima para a mais distante.
     const asc = (a: Movement, b: Movement) => a.date.localeCompare(b.date) || a.description.localeCompare(b.description, "pt-BR");
-    const desc = (a: Movement, b: Movement) => -asc(a, b);
     return {
       open: movements.filter((m) => !m.paid).sort(asc),
-      paid: movements.filter((m) => m.paid).sort(desc),
+      paid: movements.filter((m) => m.paid).sort(asc),
       overdue: movements.filter((m) => !m.paid && m.date < today).sort(asc),
     };
   }, [movements, today]);
@@ -97,7 +95,7 @@ export function LedgerPanel({
         <thead>
           <tr className="border-b text-left text-[12px] text-muted-foreground">
             <th className="py-2.5 pl-2 font-normal">Data</th>
-            <th className="py-2.5 font-normal">Descrição</th>
+            <th className="py-2.5 font-normal">{wide ? "Descrição" : isIn ? "Cliente / descrição" : "Fornecedor / descrição"}</th>
             {wide && (
               <>
                 <th className="py-2.5 font-normal">{isIn ? "Cliente" : "Fornecedor"}</th>
@@ -115,7 +113,16 @@ export function LedgerPanel({
             return (
               <tr key={m.id} className="group border-b last:border-0 hover:bg-accent/50">
                 <td className="w-16 py-2.5 pl-2 text-muted-foreground tabular">{formatDayMonth(m.date)}</td>
-                <td className={cn("max-w-0 truncate py-2.5 pr-2", wide && "font-medium")}>{m.description}</td>
+                <td className="max-w-0 py-2 pr-2">
+                  {wide || !m.contactId ? (
+                    <div className={cn("truncate", wide && "font-medium")}>{m.description}</div>
+                  ) : (
+                    <>
+                      <div className="truncate font-medium">{names.contact.get(m.contactId) ?? m.description}</div>
+                      <div className="truncate text-[11.5px] text-muted-foreground">{m.description}</div>
+                    </>
+                  )}
+                </td>
                 {wide && (
                   <>
                     <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.contact.get(m.contactId ?? "") ?? "—"}</td>

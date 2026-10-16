@@ -20,6 +20,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { DropdownMenu } from "radix-ui";
 import * as React from "react";
 import { ContactAvatar } from "@/components/avatars";
@@ -90,7 +91,14 @@ export default function MovimentosPage() {
 
   const [query, setQuery] = React.useState("");
   const [type, setType] = React.useState<TypeFilter>("all");
-  const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS);
+  const params = useSearchParams();
+  // Links de outras telas: /movimentos?categoria=…&grupo=…&contato=…
+  const [filters, setFilters] = React.useState<Filters>(() => ({
+    ...EMPTY_FILTERS,
+    categoryId: params.get("categoria") ?? "",
+    groupId: params.get("grupo") ?? "",
+    contactId: params.get("contato") ?? "",
+  }));
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date", dir: "asc" });
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());

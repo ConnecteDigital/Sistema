@@ -1,5 +1,5 @@
 import { createClient, supabaseConfigured } from "./supabase/client";
-import type { Movement, Recurrence, Transfer } from "./types";
+import type { CategoryGroup, Movement, Recurrence, Transfer } from "./types";
 
 export class DemoModeError extends Error {
   constructor() {
@@ -212,4 +212,62 @@ export async function insertContact(c: ContactInput): Promise<string> {
 
 export async function updateContact(id: string, c: Partial<ContactInput>) {
   await check(db().from("contacts").update(contactRow(c)).eq("id", id));
+}
+
+/* ---------------- Plano de categorias ---------------- */
+
+export interface GroupInput {
+  name: string;
+  type: "inflow" | "outflow";
+  section: CategoryGroup["section"];
+  color: string;
+  position?: number;
+}
+
+export async function insertGroup(g: GroupInput): Promise<string> {
+  const row = await check(db().from("category_groups").insert(g).select("id").single());
+  return (row as { id: string }).id;
+}
+
+export async function updateGroup(id: string, g: Partial<GroupInput>) {
+  await check(db().from("category_groups").update(g).eq("id", id));
+}
+
+export async function deleteGroup(id: string) {
+  await check(db().from("category_groups").delete().eq("id", id));
+}
+
+export interface CategoryInput {
+  name: string;
+  groupId: string;
+  position?: number;
+}
+
+const categoryRow = (c: Partial<CategoryInput>) => {
+  const row: Record<string, unknown> = {};
+  if (c.name !== undefined) row.name = c.name;
+  if (c.groupId !== undefined) row.group_id = c.groupId;
+  if (c.position !== undefined) row.position = c.position;
+  return row;
+};
+
+export async function insertCategory(c: CategoryInput): Promise<string> {
+  const row = await check(db().from("categories").insert(categoryRow(c)).select("id").single());
+  return (row as { id: string }).id;
+}
+
+export async function updateCategory(id: string, c: Partial<CategoryInput>) {
+  await check(db().from("categories").update(categoryRow(c)).eq("id", id));
+}
+
+/** Exclui a categoria; os lançamentos e recorrências dela passam para `moveTo` (ou ficam sem categoria). */
+export async function deleteCategory(id: string, moveTo: string | null) {
+  await check(db().from("movements").update({ category_id: moveTo }).eq("category_id", id));
+  await check(db().from("recurrences").update({ category_id: moveTo }).eq("category_id", id));
+  await check(db().from("categories").delete().eq("id", id));
+}
+
+/** Grava a nova ordem (position = índice). */
+export async function reorder(table: "categories" | "category_groups", ids: string[]) {
+  await Promise.all(ids.map((id, position) => check(db().from(table).update({ position }).eq("id", id))));
 }

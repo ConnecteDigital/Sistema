@@ -7,3 +7,4 @@ captures/
 node_modules/
 .next/
 !.env.example
+*.tsbuildinfo

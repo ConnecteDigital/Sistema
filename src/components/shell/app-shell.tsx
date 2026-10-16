@@ -9,6 +9,7 @@ import {
   Landmark,
   LayoutGrid,
   Lock,
+  LogOut,
   Moon,
   PanelLeft,
   Plus,
@@ -25,6 +26,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useFinance } from "../finance-provider";
 import { MovementDialogHost, useMovementDialog } from "../movement-dialog";
@@ -173,10 +175,25 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
             <Building2 className="size-3.5" />
           </div>
           {!collapsed && (
-            <div className="min-w-0 leading-tight">
+            <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-[12.5px] font-medium">Financeiro</div>
               <div className="truncate text-[11px] text-sidebar-foreground">{company}</div>
             </div>
+          )}
+          {!collapsed && supabaseConfigured && (
+            <button
+              onClick={async () => {
+                await createClient().auth.signOut();
+                // Recarrega a página inteira para descartar os dados em memória.
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                window.location.href = "/login";
+              }}
+              className="rounded p-1 text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+              title="Sair"
+              aria-label="Sair"
+            >
+              <LogOut className="size-3.5" />
+            </button>
           )}
         </div>
       </div>

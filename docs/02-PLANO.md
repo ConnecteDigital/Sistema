@@ -61,10 +61,24 @@ Saldos, DFC e séries do gráfico serão calculados por **views/funções SQL**,
 ### Fase 5: Publicação
 16. Deploy na Vercel, domínio próprio, variáveis de ambiente, backup automático do banco.
 
+### Fase 6: Nota fiscal automática e banco conectado
+17. **NFS-e automática**: ao marcar uma entrada como recebida, o sistema emite a nota pelo padrão nacional
+    (via provedor de API, ex.: Nuvem Fiscal / Focus NFe / NFE.io), anexa PDF e XML ao lançamento e pode
+    enviar por e-mail ao cliente. Pré-requisitos: certificado digital A1, inscrição municipal, e
+    **CPF/CNPJ + endereço de cada cliente** (hoje 0 de 131 têm CPF/CNPJ cadastrado).
+18. **Pix detectado automaticamente**: webhook da API Pix do banco PJ (tempo real) ou agregador Open Finance
+    (Pluggy/Belvo, com atraso). O Pix que cai é casado com a conta a receber (valor + pagador, ou `txid`
+    da cobrança Pix gerada pelo sistema), é baixado sozinho e dispara a nota.
+
 ### Opcional depois
 - Assistente de IA (Claude) que responde sobre o caixa.
 - Importação de planilha CSV/XLSX.
-- NFS-e e Open Finance (dependem de serviços pagos de terceiros).
+
+## Andamento
+- [x] Fase 1 (parcial): projeto, tema claro/escuro, menu, filtros de conta e período, **Painel completo**, modal de lançamento
+- [x] Núcleo de cálculo com testes de paridade: saldos, KPIs, gráfico, DFC e categorias **batem com o original**
+- [x] Esquema do banco (`supabase/migrations/0001_init.sql`) e script de importação com conferência de saldos
+- [ ] Supabase criado + login + importação real
 
 ## Preciso de você antes de começar
 1. **Supabase**: criar o projeto (ou me dizer qual usar) e liberar o acesso a ele aqui.

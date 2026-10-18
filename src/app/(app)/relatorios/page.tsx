@@ -9,6 +9,7 @@ import {
   FileText,
   LineChart as LineIcon,
   Scale,
+  Sparkles,
   Tag,
   TrendingUp,
   Wallet,
@@ -18,6 +19,7 @@ import * as React from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AccountFilter, PeriodPicker } from "@/components/filters";
 import { useFinance } from "@/components/finance-provider";
+import { InsightsView } from "@/components/insights-view";
 import { KpiCard } from "@/components/kpi";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
@@ -39,7 +41,7 @@ import { formatBRL, formatCompact, formatDate, formatPercent, formatRange, forma
 import type { DateRange, DfcSection } from "@/lib/types";
 import { cn, groupColor } from "@/lib/utils";
 
-type Tab = "statement" | "monthly" | "categories";
+type Tab = "insights" | "statement" | "monthly" | "categories";
 
 const monthLabel = (ym: string, withYear = false) => {
   const [y, m] = ym.split("-").map(Number);
@@ -56,7 +58,7 @@ function download(name: string, content: string, type = "text/csv;charset=utf-8"
 export default function RelatoriosPage() {
   const { data, error, accountIds, today } = useFinance();
   const [range, setRange] = React.useState<DateRange | null>(null);
-  const [tab, setTab] = React.useState<Tab>("statement");
+  const [tab, setTab] = React.useState<Tab>("insights");
   const year = today ? { start: `${today.slice(0, 4)}-01-01`, end: `${today.slice(0, 4)}-12-31` } : null;
   const period = range ?? year;
 
@@ -122,6 +124,7 @@ export default function RelatoriosPage() {
           value={tab}
           onChange={setTab}
           options={[
+            { value: "insights", label: "Análises", icon: <Sparkles /> },
             { value: "statement", label: "Demonstrativo", icon: <FileText /> },
             { value: "monthly", label: "Fluxo mensal", icon: <BarChart3 /> },
             { value: "categories", label: "Categorias", icon: <Tag /> },
@@ -147,6 +150,7 @@ export default function RelatoriosPage() {
       </div>
 
       <div key={tab} className="mt-3 animate-pop-in">
+        {tab === "insights" && <InsightsView period={period} accountIds={accountIds} />}
         {tab === "statement" && <StatementView statement={statement} period={period} />}
         {tab === "monthly" && <MonthlyView end={period.end} accountIds={accountIds} />}
         {tab === "categories" && <CategoriesView period={period} accountIds={accountIds} />}

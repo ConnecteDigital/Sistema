@@ -121,42 +121,43 @@ export function LedgerPanel({
                       <div className="truncate">{m.description}</div>
                     ) : (
                       <>
-                        <div className="truncate font-medium">{names.contact.get(m.contactId) ?? m.description}</div>
+                        <div className="font-medium leading-snug">{names.contact.get(m.contactId) ?? m.description}</div>
                         <div className="truncate text-[11.5px] text-muted-foreground">{m.description}</div>
                       </>
                     )}
                   </td>
                 )}
-                <td className="w-24 py-2.5">
-                  {m.paid ? (
-                    <Badge tone="success" dot>
-                      {isIn ? "Recebido" : "Pago"}
-                    </Badge>
-                  ) : overdue ? (
-                    <Badge tone="danger" dot>
-                      Vencido
-                    </Badge>
-                  ) : (
-                    <Badge tone="warning" dot>
-                      {isIn ? "A receber" : "A pagar"}
-                    </Badge>
-                  )}
-                </td>
-                <td className="py-2.5 pr-2 text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className={cn("font-semibold tabular", valueColor)}>{formatBRL(m.amount)}</span>
-                    <span className="flex w-0 gap-0.5 overflow-hidden opacity-0 transition-all duration-200 group-hover:w-[72px] group-hover:opacity-100 group-focus-within:w-[72px] group-focus-within:opacity-100">
-                      <button onClick={() => void setPaid([m.id], !m.paid)} className="rounded p-1 text-muted-foreground hover:bg-success-soft hover:text-success-foreground" title={m.paid ? "Desfazer baixa" : isIn ? "Marcar como recebido" : "Marcar como pago"}>
-                        {m.paid ? <RotateCcw className="size-3.5" /> : <Check className="size-3.5" />}
-                      </button>
-                      <button onClick={() => open({ kind: m.type, movement: m })} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Editar">
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button onClick={() => void remove([m])} className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-destructive-foreground" title="Excluir">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </span>
+                <td className="relative w-28 py-2.5">
+                  {/* No hover as ações tomam o lugar do status, sem empurrar o nome nem o valor. */}
+                  <div className="transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0">
+                    {m.paid ? (
+                      <Badge tone="success" dot>
+                        {isIn ? "Recebido" : "Pago"}
+                      </Badge>
+                    ) : overdue ? (
+                      <Badge tone="danger" dot>
+                        Vencido
+                      </Badge>
+                    ) : (
+                      <Badge tone="warning" dot>
+                        {isIn ? "A receber" : "A pagar"}
+                      </Badge>
+                    )}
                   </div>
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+                    <button onClick={() => void setPaid([m.id], !m.paid)} className="rounded p-1 text-muted-foreground hover:bg-success-soft hover:text-success-foreground" title={m.paid ? "Desfazer baixa" : isIn ? "Marcar como recebido" : "Marcar como pago"}>
+                      {m.paid ? <RotateCcw className="size-3.5" /> : <Check className="size-3.5" />}
+                    </button>
+                    <button onClick={() => open({ kind: m.type, movement: m })} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Editar">
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button onClick={() => void remove([m])} className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-destructive-foreground" title="Excluir">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </td>
+                <td className="w-28 whitespace-nowrap py-2.5 pr-2 text-right">
+                  <span className={cn("font-semibold tabular", valueColor)}>{formatBRL(m.amount)}</span>
                 </td>
               </tr>
             );

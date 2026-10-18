@@ -226,7 +226,7 @@ export default function PainelPage() {
         </Card>
       </div>
 
-      <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
+      <div className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <LedgerPanel type="inflow" movements={computed.inflows} today={today} />
         <LedgerPanel type="outflow" movements={computed.outflows} today={today} />
       </div>

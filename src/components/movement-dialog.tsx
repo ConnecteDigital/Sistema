@@ -9,6 +9,7 @@ import { deleteMovements, insertMovements, insertRecurrence, insertTransfer, upd
 import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ContactPicker } from "./contact-picker";
 import { useFinance } from "./finance-provider";
 import { useToast } from "./toast";
 
@@ -128,7 +129,6 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const categories = (data?.categories ?? [])
     .filter((c) => kind !== "transfer" && groupType.get(c.groupId)?.type === kind)
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const contacts = (data?.contacts ?? []).filter((c) => !c.deleted && (isIn ? c.isCustomer : c.isSupplier || c.isCustomer));
   const accounts = (data?.accounts ?? []).filter((a) => a.active);
 
   const settling = !!editing && !editing.paid && paid && kind !== "transfer";
@@ -453,14 +453,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
                   </Field>
                   <div className="border-t" />
                   <Field label={isIn ? "Cliente" : "Fornecedor"}>
-                    <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputClass}>
-                      <option value="">{isIn ? "Sem cliente" : "Sem fornecedor"}</option>
-                      {contacts.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                    <ContactPicker value={contactId} onChange={setContactId} kind={isIn ? "customer" : "supplier"} />
                   </Field>
                 </>
               )}

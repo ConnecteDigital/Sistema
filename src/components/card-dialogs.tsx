@@ -9,6 +9,7 @@ import { addMonths } from "@/lib/dates";
 import { formatBRL, formatDate, monthLong } from "@/lib/format";
 import { deleteCard, insertCard, insertMovements, updateCard } from "@/lib/mutations";
 import type { CreditCard } from "@/lib/types";
+import { ContactPicker } from "./contact-picker";
 import { useFinance } from "./finance-provider";
 import { useToast } from "./toast";
 
@@ -221,7 +222,6 @@ export function PurchaseDialog({ cardId, onClose }: { cardId: string | null; onC
   const selected = cards.find((c) => c.id === card) ?? null;
   const groups = new Map(data?.groups.map((g) => [g.id, g]) ?? []);
   const categories = (data?.categories ?? []).filter((c) => groups.get(c.groupId)?.type === "outflow").sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const contacts = (data?.contacts ?? []).filter((c) => !c.deleted).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const value = parseMoney(amount);
   const first = selected && date ? invoiceFor(selected, date) : null;
 
@@ -323,14 +323,7 @@ export function PurchaseDialog({ cardId, onClose }: { cardId: string | null; onC
                 </select>
               </Field>
               <Field label="Fornecedor">
-                <select className={inputClass} value={contactId} onChange={(e) => setContactId(e.target.value)}>
-                  <option value="">Nenhum</option>
-                  {contacts.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <ContactPicker value={contactId} onChange={setContactId} kind="supplier" />
               </Field>
             </div>
             <Field label="Observações">

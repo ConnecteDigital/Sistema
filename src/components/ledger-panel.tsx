@@ -95,14 +95,8 @@ export function LedgerPanel({
         <thead>
           <tr className="border-b text-left text-[12px] text-muted-foreground">
             <th className="py-2.5 pl-2 font-normal">Data</th>
-            <th className="py-2.5 font-normal">{wide ? "Descrição" : isIn ? "Cliente / descrição" : "Fornecedor / descrição"}</th>
-            {wide && (
-              <>
-                <th className="py-2.5 font-normal">{isIn ? "Cliente" : "Fornecedor"}</th>
-                <th className="py-2.5 font-normal">Categoria</th>
-                <th className="py-2.5 font-normal">Conta</th>
-              </>
-            )}
+            <th className="py-2.5 font-normal">{wide ? (isIn ? "Cliente" : "Fornecedor") : isIn ? "Cliente / descrição" : "Fornecedor / descrição"}</th>
+            {wide && <th className="py-2.5 font-normal">Categoria</th>}
             <th className="py-2.5 font-normal">Status</th>
             <th className="py-2.5 pr-2 text-right font-normal">Valor</th>
           </tr>
@@ -113,22 +107,25 @@ export function LedgerPanel({
             return (
               <tr key={m.id} className="group border-b last:border-0 hover:bg-accent/50">
                 <td className="w-16 py-2.5 pl-2 text-muted-foreground tabular">{formatDayMonth(m.date)}</td>
-                <td className="max-w-0 py-2 pr-2">
-                  {wide || !m.contactId ? (
-                    <div className={cn("truncate", wide && "font-medium")}>{m.description}</div>
-                  ) : (
-                    <>
-                      <div className="truncate font-medium">{names.contact.get(m.contactId) ?? m.description}</div>
-                      <div className="truncate text-[11.5px] text-muted-foreground">{m.description}</div>
-                    </>
-                  )}
-                </td>
-                {wide && (
+                {wide ? (
                   <>
-                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.contact.get(m.contactId ?? "") ?? "—"}</td>
-                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>
-                    <td className="max-w-0 truncate py-2.5 pr-3 text-muted-foreground">{names.account.get(m.bankAccountId) ?? "—"}</td>
+                    {/* Nome completo do cliente; a descrição fica no título (quase sempre repete a categoria). */}
+                    <td className="py-2 pr-3 font-medium" title={m.description}>
+                      {names.contact.get(m.contactId ?? "") ?? m.description}
+                    </td>
+                    <td className="w-[22%] py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>
                   </>
+                ) : (
+                  <td className="max-w-0 py-2 pr-2">
+                    {!m.contactId ? (
+                      <div className="truncate">{m.description}</div>
+                    ) : (
+                      <>
+                        <div className="truncate font-medium">{names.contact.get(m.contactId) ?? m.description}</div>
+                        <div className="truncate text-[11.5px] text-muted-foreground">{m.description}</div>
+                      </>
+                    )}
+                  </td>
                 )}
                 <td className="w-24 py-2.5">
                   {m.paid ? (
@@ -166,7 +163,7 @@ export function LedgerPanel({
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={wide ? 7 : 4} className="py-10 text-center text-[12.5px] text-muted-foreground">
+              <td colSpan={wide ? 5 : 4} className="py-10 text-center text-[12.5px] text-muted-foreground">
                 Nada por aqui no período.
               </td>
             </tr>
@@ -175,7 +172,7 @@ export function LedgerPanel({
         {rows.length > 0 && (
           <tfoot>
             <tr className="bg-muted/70">
-              <td colSpan={wide ? 6 : 3} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
+              <td colSpan={wide ? 4 : 3} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
                 Total
               </td>
               <td className={cn("py-2.5 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(total)}</td>

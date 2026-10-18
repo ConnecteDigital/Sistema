@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { addDays, addMonths } from "@/lib/dates";
 import { deleteMovements, insertMovements, insertRecurrence, insertTransfer, updateMovement } from "@/lib/mutations";
 import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
+import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useFinance } from "./finance-provider";
 import { useToast } from "./toast";
@@ -104,6 +105,10 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const [amount, setAmount] = React.useState(editing ? money.format(editing.amount) : "");
   const [date, setDate] = React.useState(editing?.date ?? today);
   const [paid, setPaid] = React.useState(editing?.paid ?? false);
+  // Baixa com valor diferente (pagamento parcial, desconto ou juros) — só ao baixar algo que estava em aberto.
+  const [received, setReceived] = React.useState("");
+  const [shortfall, setShortfall] = React.useState<"partial" | "discount">("partial");
+  const [remainderDate, setRemainderDate] = React.useState(editing?.date ?? today);
   const [description, setDescription] = React.useState(editing?.description ?? "");
   const [categoryId, setCategoryId] = React.useState(editing?.categoryId ?? "");
   const [accountId, setAccountId] = React.useState(editing?.bankAccountId ?? (data?.accounts.length === 1 ? data.accounts[0].id : ""));
@@ -125,6 +130,10 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const contacts = (data?.contacts ?? []).filter((c) => !c.deleted && (isIn ? c.isCustomer : c.isSupplier || c.isCustomer));
   const accounts = (data?.accounts ?? []).filter((a) => a.active);
+
+  const settling = !!editing && !editing.paid && paid && kind !== "transfer";
+  const receivedValue = received ? parseMoney(received) : parseMoney(amount);
+  const settleDiff = Math.round((parseMoney(amount) - receivedValue) * 100) / 100;
 
   const accent = kind === "inflow" ? "bg-success" : kind === "outflow" ? "bg-destructive" : "bg-info";
   const noun = kind === "inflow" ? "recebimento" : kind === "outflow" ? "pagamento" : "transferência";
@@ -157,7 +166,36 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           documentNumber: documentNumber.trim() || null,
           notes: notes.trim() || null,
         };
-        if (editing) {
+        const settledValue = settling && received ? parseMoney(received) : value;
+        const diff = Math.round((value - settledValue) * 100) / 100;
+        if (editing && settling && diff !== 0) {
+          // Fica registrado na observação quanto era o valor original.
+          const note =
+            diff < 0
+              ? `Juros/multa de ${formatBRL(-diff)} (valor original ${formatBRL(value)})`
+              : shortfall === "discount"
+                ? `Desconto de ${formatBRL(diff)} (valor original ${formatBRL(value)})`
+                : `Pagamento parcial de ${formatBRL(value)}; restante de ${formatBRL(diff)} para ${remainderDate.split("-").reverse().join("/")}`;
+          const patch = { ...base, amount: settledValue, notes: [base.notes, note].filter(Boolean).join("\n") };
+          applyLocal((d) => ({ ...d, movements: d.movements.map((m) => (m.id === editing.id ? { ...m, ...patch } : m)) }));
+          await updateMovement(editing.id, patch);
+          if (diff > 0 && shortfall === "partial") {
+            await insertMovements([
+              {
+                ...base,
+                amount: diff,
+                paid: false,
+                date: remainderDate,
+                dueDate: remainderDate,
+                description: `${base.description} (restante)`,
+                notes: `Restante do pagamento parcial de ${formatBRL(value)} recebido em ${date.split("-").reverse().join("/")}`,
+                recurrenceId: null,
+                installment: 0,
+                totalInstallments: 0,
+              },
+            ]);
+          }
+        } else if (editing) {
           applyLocal((d) => ({ ...d, movements: d.movements.map((m) => (m.id === editing.id ? { ...m, ...base } : m)) }));
           await updateMovement(editing.id, base);
         } else if (period === "none") {
@@ -179,7 +217,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
         }
       }
       await reload();
-      toast({ tone: "success", title: editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
+      toast({ tone: "success", title: settling && settleDiff > 0 ? (shortfall === "partial" ? `Baixa parcial: ${formatBRL(settleDiff)} continuam em aberto` : `Baixado com desconto de ${formatBRL(settleDiff)}`) : editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
       if (keepOpen) {
         setAmount("");
         setDescription("");
@@ -285,6 +323,52 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
               )}
             </div>
           </Field>
+          {settling && (
+            <div className="space-y-2.5 rounded-xl border border-dashed bg-muted/40 p-3 animate-fade-in">
+              <Field label={isIn ? "Valor recebido" : "Valor pago"} hint="Se veio diferente do previsto, ajuste aqui.">
+                <div className="relative w-[210px]">
+                  <span className="pointer-events-none absolute left-2.5 top-1.5 text-[12px] text-muted-foreground">R$</span>
+                  <input inputMode="decimal" value={received || amount} onChange={(e) => setReceived(maskMoney(e.target.value))} className={cn(inputClass, "pl-8 font-medium tabular")} />
+                </div>
+              </Field>
+              {settleDiff > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[12.5px]">
+                    Faltam <b className="tabular">{formatBRL(settleDiff)}</b>. O que fazer com a diferença?
+                  </div>
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {(
+                      [
+                        ["partial", "Pagamento parcial", "O restante continua em aberto"],
+                        ["discount", "Desconto", "O restante não será cobrado"],
+                      ] as const
+                    ).map(([k, title, sub]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setShortfall(k)}
+                        className={cn("rounded-lg border px-2.5 py-1.5 text-left transition-colors", shortfall === k ? "border-primary bg-brand-soft" : "bg-card hover:bg-accent/60")}
+                      >
+                        <div className="text-[12.5px] font-medium">{title}</div>
+                        <div className="text-[11px] text-muted-foreground">{sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {shortfall === "partial" && (
+                    <label className="flex items-center gap-2 text-[12.5px]">
+                      Restante vence em
+                      <input type="date" value={remainderDate} onChange={(e) => setRemainderDate(e.target.value)} className={cn(inputClass, "h-7 w-[150px]")} />
+                    </label>
+                  )}
+                </div>
+              )}
+              {settleDiff < 0 && (
+                <div className="text-[12.5px] text-muted-foreground">
+                  Veio <b className="text-foreground tabular">{formatBRL(-settleDiff)}</b> a mais — fica registrado como juros/multa e o lançamento passa a {formatBRL(receivedValue)}.
+                </div>
+              )}
+            </div>
+          )}
           <Field label="Descrição" required={kind !== "transfer"}>
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva brevemente o lançamento..." className={inputClass} />
           </Field>

@@ -106,7 +106,7 @@ export function InsightsView({ period, accountIds }: { period: DateRange; accoun
   const placeTotal = ins.states.reduce((s, r) => s + r.amount, 0);
   const placeRows = (placeMode === "states" ? ins.states : ins.cities).map((r) => ({ ...r, share: placeTotal ? (r.amount / placeTotal) * 100 : 0 }));
   const donut = [...ins.states.slice(0, 5), ...(ins.states.length > 5 ? [{ key: "outros", label: "Outros estados", amount: ins.states.slice(5).reduce((s, r) => s + r.amount, 0), count: 0, share: 0 }] : [])];
-  const forecastRows = ins.forecast.map((f) => ({ ...f, net: Math.round((f.inflow - f.outflow) * 100) / 100 }));
+  const forecastRows = ins.forecast.map((f) => ({ ...f, operating: Math.round((f.inflow - f.costs) * 100) / 100 }));
   const best = ins.months.reduce((a, b) => (b.revenue > a.revenue ? b : a), ins.months[0]);
   // Só meses fechados: o mês corrente ainda está pela metade.
   const closed = ins.months.filter((m) => m.month < today.slice(0, 7));
@@ -154,14 +154,16 @@ export function InsightsView({ period, accountIds }: { period: DateRange; accoun
               <YAxis yAxisId="count" orientation="right" width={28} allowDecimals={false} {...axis} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
               <Bar yAxisId="money" dataKey="revenue" name="Faturamento" fill="var(--chart-in)" radius={[4, 4, 0, 0]} maxBarSize={34} />
-              <Line yAxisId="money" dataKey="expenses" name="Despesas" stroke="var(--chart-out)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+              <Bar yAxisId="money" dataKey="withdrawals" name="Retiradas e reserva" fill="#8b5cf6" fillOpacity={0.55} radius={[4, 4, 0, 0]} maxBarSize={14} />
+              <Line yAxisId="money" dataKey="costs" name="Custos da operação" stroke="var(--chart-out)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
               <Line yAxisId="count" dataKey="clients" name="Clientes que pagaram" stroke="var(--chart-balance)" strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="mt-2 flex flex-wrap gap-4 text-[11.5px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--chart-in)]" /> Faturamento</span>
-          <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-[var(--chart-out)]" /> Despesas</span>
+          <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-[var(--chart-out)]" /> Custos da operação</span>
+          <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[#8b5cf6] opacity-60" /> Retiradas de lucro, empréstimos e investimentos (não é custo)</span>
           <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[var(--chart-balance)]" /> Clientes que pagaram (eixo da direita)</span>
         </div>
       </Section>
@@ -305,28 +307,56 @@ export function InsightsView({ period, accountIds }: { period: DateRange; accoun
         </Section>
       </div>
 
-      <Section title="Próximos 3 meses" icon={<Sparkles />} subtitle="O que já está lançado para entrar e sair (em aberto)">
-        <div className="grid items-center gap-4 lg:grid-cols-[1fr_260px]">
-          <div className="h-[220px]">
+      <Section
+        title="Próximos 3 meses"
+        icon={<Sparkles />}
+        subtitle="O que já está lançado em aberto e quanto vai sobrar em cada conta — partindo do saldo de hoje, que inclui o que já foi guardado"
+      >
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="h-[240px]">
             <ResponsiveContainer>
-              <BarChart data={forecastRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={6}>
+              <BarChart data={forecastRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="month" tickFormatter={monthLabel} {...axis} />
                 <YAxis tickFormatter={formatCompact} width={44} {...axis} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
-                <Bar dataKey="inflow" name="A receber" fill="var(--chart-in)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="outflow" name="A pagar" fill="var(--chart-out)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} formatter={(v) => <span className="text-muted-foreground">{v}</span>} />
+                <Bar dataKey="inflow" name="A receber" fill="var(--chart-in)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="costs" name="Custos da operação" fill="var(--chart-out)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="withdrawals" name="Retiradas e reserva" fill="#8b5cf6" fillOpacity={0.7} radius={[4, 4, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <ul className="space-y-2 text-[13px]">
+          <ul className="space-y-2 text-[12.5px]">
             {forecastRows.map((f) => (
-              <li key={f.month} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <span className="font-medium">{monthLabel(f.month)}</span>
-                <span className={cn("font-semibold tabular", f.net < 0 ? "text-destructive-foreground" : "text-success-foreground")}>
-                  {f.net >= 0 ? "+" : ""}
-                  {formatBRL(f.net)}
-                </span>
+              <li key={f.month} className="rounded-lg border px-3 py-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold">{monthLabel(f.month)}</span>
+                  <span className="text-muted-foreground">
+                    saldo no fim do mês <b className={cn("text-[13px] tabular", f.balance < 0 ? "text-destructive-foreground" : "text-foreground")}>{formatBRL(f.balance)}</b>
+                  </span>
+                </div>
+                <div className="mt-1.5 space-y-0.5 text-muted-foreground">
+                  {f.balances.map((b) => (
+                    <div key={b.accountId} className="flex justify-between">
+                      <span>{b.name}</span>
+                      <span className={cn("tabular", b.balance < 0 && "text-destructive-foreground")}>{formatBRL(b.balance)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between border-t pt-1">
+                    <span>Operação (recebe − custos)</span>
+                    <span className={cn("font-medium tabular", f.operating < 0 ? "text-destructive-foreground" : "text-success-foreground")}>
+                      {f.operating >= 0 ? "+" : ""}
+                      {formatBRL(f.operating)}
+                    </span>
+                  </div>
+                  {f.withdrawals > 0 && (
+                    <div className="flex justify-between">
+                      <span>Retiradas e reserva</span>
+                      <span className="tabular">−{formatBRL(f.withdrawals)}</span>
+                    </div>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

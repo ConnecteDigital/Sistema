@@ -4,7 +4,7 @@
  * Tudo em regime de caixa e só com o que foi recebido/pago, salvo onde dito.
  */
 import { addMonths, daysBetween, eachMonth, endOfMonth, startOfMonth } from "./dates";
-import { movementsIn, type Scope } from "./finance";
+import { balanceAt, movementsIn, type Scope } from "./finance";
 import type { Contact, DateRange, FinanceData, ISODate, Movement } from "./types";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -109,12 +109,21 @@ export interface Insights {
   unknownPlace: number;
   categories: Ranked[];
   /** 12 meses até o fim do período: faturamento, clientes que pagaram e faturamento por categoria. */
-  months: { month: string; revenue: number; clients: number; expenses: number; byCategory: Record<string, number> }[];
+  /** costs = custos da operação; withdrawals = retiradas de sócios, empréstimos e investimentos (não é prejuízo). */
+  months: { month: string; revenue: number; clients: number; costs: number; withdrawals: number; byCategory: Record<string, number> }[];
   topCategoryKeys: string[];
   atRisk: { contact: Contact; lastPaid: ISODate; days: number; monthly: number; payments: number }[];
   overdue: { contact: Contact | null; label: string; amount: number; count: number; oldest: ISODate }[];
   overdueTotal: number;
-  forecast: { month: string; inflow: number; outflow: number }[];
+  forecast: {
+    month: string;
+    inflow: number;
+    costs: number;
+    withdrawals: number;
+    /** Saldo previsto no fim do mês, por conta (parte do saldo de hoje). */
+    balances: { accountId: string; name: string; balance: number }[];
+    balance: number;
+  }[];
 }
 
 export function computeInsights(data: FinanceData, scope: Scope, period: DateRange, today: ISODate): Insights {
@@ -143,6 +152,17 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
   const clients = rank(byClient, revenue);
   // Não conta meses que ainda não chegaram (o período padrão é o ano inteiro).
   const lastMonthEnd = period.end < endOfMonth(today) ? period.end : endOfMonth(today);
+  // Retirada de lucro, aporte/empréstimo e investimento saem do caixa, mas não são custo da operação.
+  // Vale pela seção do grupo ou pelo nome da categoria (no plano importado elas estão em "Despesas Operacionais").
+  const withdrawalCats = new Set(
+    data.categories
+      .filter((c) => {
+        const sec = data.groups.find((g) => g.id === c.groupId)?.section;
+        return sec === "partners_loans" || sec === "investments" || /retirada|investimento|aporte|empr[eé]stimo|aplica[cç]/i.test(c.name);
+      })
+      .map((c) => c.id),
+  );
+  const isWithdrawal = (m: Movement) => withdrawalCats.has(m.categoryId ?? "");
   const months = eachMonth({ start: startOfMonth(addMonths(lastMonthEnd, -11)), end: lastMonthEnd });
   const monthCount = Math.max(1, period.start > lastMonthEnd ? 1 : eachMonth({ start: period.start, end: lastMonthEnd }).length);
 
@@ -153,14 +173,15 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
 
   const catRank = rank(byCategory, revenue);
   const topCategoryKeys = catRank.slice(0, 5).map((c) => c.key);
-  const monthRows = months.map((month) => ({ month, revenue: 0, clients: 0, expenses: 0, byCategory: {} as Record<string, number> }));
+  const monthRows = months.map((month) => ({ month, revenue: 0, clients: 0, costs: 0, withdrawals: 0, byCategory: {} as Record<string, number> }));
   const monthIdx = new Map(months.map((m, i) => [m, i]));
   const monthClients = months.map(() => new Set<string>());
   for (const m of all) {
     const i = monthIdx.get(m.date.slice(0, 7));
     if (i === undefined || !m.paid) continue;
     if (m.type === "outflow") {
-      monthRows[i].expenses += m.amount;
+      if (isWithdrawal(m)) monthRows[i].withdrawals += m.amount;
+      else monthRows[i].costs += m.amount;
       continue;
     }
     monthRows[i].revenue += m.amount;
@@ -170,7 +191,8 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
   }
   monthRows.forEach((r, i) => {
     r.revenue = round2(r.revenue);
-    r.expenses = round2(r.expenses);
+    r.costs = round2(r.costs);
+    r.withdrawals = round2(r.withdrawals);
     r.clients = monthClients[i].size;
   });
 
@@ -202,16 +224,25 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
   }
   const overdue = [...overdueMap.values()].map((v) => ({ ...v, amount: round2(v.amount) })).sort((a, b) => b.amount - a.amount);
 
-  // Próximos 3 meses: o que está lançado em aberto.
+  // Próximos 3 meses: o que está lançado em aberto e o saldo previsto de cada conta no fim do mês,
+  // partindo do saldo de hoje (o que já foi guardado em meses anteriores conta).
+  const accounts = data.accounts.filter((a) => a.active && (!scope.accountIds.length || scope.accountIds.includes(a.id))).sort((a, b) => a.position - b.position);
+  const running = new Map(accounts.map((a) => [a.id, balanceAt(data, { accountIds: [a.id] }, today)]));
   const fMonths = eachMonth({ start: startOfMonth(today), end: endOfMonth(addMonths(today, 2)) });
-  const forecast = fMonths.map((month) => ({ month, inflow: 0, outflow: 0 }));
-  for (const m of all) {
-    if (m.paid || m.date < today) continue;
-    const i = fMonths.indexOf(m.date.slice(0, 7));
-    if (i < 0) continue;
-    if (m.type === "inflow") forecast[i].inflow += m.amount;
-    else forecast[i].outflow += m.amount;
-  }
+  const forecast = fMonths.map((month) => {
+    let inflow = 0;
+    let costs = 0;
+    let withdrawals = 0;
+    for (const m of all) {
+      if (m.paid || m.date < today || m.date.slice(0, 7) !== month || !running.has(m.bankAccountId)) continue;
+      running.set(m.bankAccountId, running.get(m.bankAccountId)! + (m.type === "inflow" ? m.amount : -m.amount));
+      if (m.type === "inflow") inflow += m.amount;
+      else if (isWithdrawal(m)) withdrawals += m.amount;
+      else costs += m.amount;
+    }
+    const balances = accounts.map((a) => ({ accountId: a.id, name: a.name, balance: round2(running.get(a.id)!) }));
+    return { month, inflow: round2(inflow), costs: round2(costs), withdrawals: round2(withdrawals), balances, balance: round2(balances.reduce((s, b) => s + b.balance, 0)) };
+  });
 
   const activeClients = clients.filter((c) => c.key !== "-").length;
   return {
@@ -230,6 +261,6 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
     atRisk,
     overdue,
     overdueTotal: round2(overdue.reduce((s, o) => s + o.amount, 0)),
-    forecast: forecast.map((f) => ({ ...f, inflow: round2(f.inflow), outflow: round2(f.outflow) })),
+    forecast,
   };
 }

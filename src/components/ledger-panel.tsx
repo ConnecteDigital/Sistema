@@ -3,7 +3,7 @@
 import { Check, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Badge, Card, CountPill, UnderlineTabs } from "@/components/ui/primitives";
+import { Badge, Card, Checkbox, CountPill, UnderlineTabs } from "@/components/ui/primitives";
 import { formatBRL, formatDayMonth } from "@/lib/format";
 import type { Movement, MovementType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,8 @@ export function LedgerPanel({
   const { setPaid, remove } = useFinanceActions();
   const [tab, setTab] = React.useState<Tab>(initialTab);
   const [page, setPage] = React.useState(0);
+  // Seleção de várias linhas para somar (e baixar de uma vez).
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   const lists = React.useMemo(() => {
     // Todas as abas em ordem de data, da mais próxima para a mais distante.
@@ -60,6 +62,17 @@ export function LedgerPanel({
   const rows = list.slice(page * PAGE, page * PAGE + PAGE);
   const total = list.reduce((s, m) => s + m.amount, 0);
   const openTotal = lists.open.reduce((s, m) => s + m.amount, 0);
+  const picked = list.filter((m) => selected.has(m.id));
+  const pickedTotal = picked.reduce((s, m) => s + m.amount, 0);
+  const pickedOpen = picked.filter((m) => !m.paid);
+  const allPicked = list.length > 0 && picked.length === list.length;
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   const valueColor = isIn ? "text-foreground" : "text-destructive-foreground";
 
   return (
@@ -83,6 +96,7 @@ export function LedgerPanel({
           onChange={(t) => {
             setTab(t);
             setPage(0);
+            setSelected(new Set());
           }}
           options={[
             { value: "open", label: <>Em aberto <CountPill tone={isIn ? "success" : "danger"}>{lists.open.length}</CountPill></> },
@@ -94,7 +108,14 @@ export function LedgerPanel({
       <table className="mt-2 w-full text-[13px]">
         <thead>
           <tr className="border-b text-left text-[12px] text-muted-foreground">
-            <th className="py-2.5 pl-2 font-normal">Data</th>
+            <th className="w-7 py-2.5 pl-2 font-normal">
+              <Checkbox
+                checked={allPicked ? true : picked.length ? "indeterminate" : false}
+                onCheckedChange={() => setSelected(allPicked ? new Set() : new Set(list.map((m) => m.id)))}
+                aria-label="Selecionar todos"
+              />
+            </th>
+            <th className="py-2.5 pl-1 font-normal">Data</th>
             <th className="py-2.5 font-normal">{wide ? (isIn ? "Cliente" : "Fornecedor") : isIn ? "Cliente / descrição" : "Fornecedor / descrição"}</th>
             {wide && <th className="py-2.5 font-normal">Categoria</th>}
             <th className="py-2.5 font-normal">Status</th>
@@ -105,8 +126,18 @@ export function LedgerPanel({
           {rows.map((m) => {
             const overdue = !m.paid && m.date < today;
             return (
-              <tr key={m.id} className="group border-b last:border-0 hover:bg-accent/50">
-                <td className="w-16 py-2.5 pl-2 text-muted-foreground tabular">{formatDayMonth(m.date)}</td>
+              <tr
+                key={m.id}
+                onClick={(e) => {
+                  // Clicar na linha marca/desmarca (menos nos botões de ação).
+                  if (!(e.target as HTMLElement).closest("button")) toggle(m.id);
+                }}
+                className={cn("group cursor-pointer border-b last:border-0 hover:bg-accent/50", selected.has(m.id) && "bg-brand-soft/60 hover:bg-brand-soft")}
+              >
+                <td className="w-7 py-2.5 pl-2">
+                  <Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggle(m.id)} aria-label="Selecionar" />
+                </td>
+                <td className="w-14 py-2.5 pl-1 text-muted-foreground tabular">{formatDayMonth(m.date)}</td>
                 {wide ? (
                   <>
                     {/* Nome completo do cliente; a descrição fica no título (quase sempre repete a categoria). */}
@@ -164,7 +195,7 @@ export function LedgerPanel({
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={wide ? 5 : 4} className="py-10 text-center text-[12.5px] text-muted-foreground">
+              <td colSpan={wide ? 6 : 5} className="py-10 text-center text-[12.5px] text-muted-foreground">
                 Nada por aqui no período.
               </td>
             </tr>
@@ -172,8 +203,35 @@ export function LedgerPanel({
         </tbody>
         {rows.length > 0 && (
           <tfoot>
+            {picked.length > 0 && (
+              <tr className="bg-brand-soft animate-fade-in">
+                <td colSpan={wide ? 5 : 4} className="py-2 pl-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                    <span className="font-medium">
+                      {picked.length} selecionado{picked.length === 1 ? "" : "s"}
+                    </span>
+                    {pickedOpen.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          void setPaid(pickedOpen.map((m) => m.id), true);
+                          setSelected(new Set());
+                        }}
+                      >
+                        <Check /> {isIn ? "Receber" : "Pagar"} {pickedOpen.length}
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                      Limpar
+                    </Button>
+                  </div>
+                </td>
+                <td className={cn("py-2 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(pickedTotal)}</td>
+              </tr>
+            )}
             <tr className="bg-muted/70">
-              <td colSpan={wide ? 4 : 3} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
+              <td colSpan={wide ? 5 : 4} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
                 Total
               </td>
               <td className={cn("py-2.5 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(total)}</td>

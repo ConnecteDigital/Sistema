@@ -42,7 +42,7 @@ function DialogFooter({
   danger?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
+    <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
       {onDelete && (
         <Button type="button" variant="ghost" size="md" className="text-destructive-foreground" onClick={onDelete} title={deleteTitle} disabled={busy}>
           <Trash2 /> Excluir

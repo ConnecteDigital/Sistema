@@ -139,7 +139,8 @@ export function DialogContent({ className, children, ...props }: React.Component
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[3px] animate-fade-in" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-[12vh] z-50 w-[min(920px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border bg-card shadow-2xl outline-none animate-pop-in",
+          // Em telas baixas o conteúdo rola dentro do modal e o rodapé (botões) fica sempre visível.
+          "fixed left-1/2 top-[min(12vh,4rem)] z-50 max-h-[calc(100dvh-min(12vh,4rem)-1rem)] w-[min(920px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-xl border bg-card shadow-2xl outline-none animate-pop-in",
           className,
         )}
         {...props}

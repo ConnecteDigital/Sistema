@@ -98,7 +98,7 @@ export function AccountDialog({ account, onClose }: { account: BankAccount | nul
               Conta ativa <span className="text-muted-foreground">(contas inativas não aparecem para novos lançamentos)</span>
             </label>
           </div>
-          <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
+          <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
             <span className="flex-1 text-[12px] text-destructive-foreground">{message}</span>
             <Button type="button" size="md" onClick={onClose}>
               Cancelar

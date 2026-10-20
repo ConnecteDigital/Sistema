@@ -749,7 +749,7 @@ function FiltersPopover({
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/50 px-4 py-3">
+        <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-4 py-3">
           <button className="text-[12.5px] text-muted-foreground hover:text-foreground" onClick={() => setDraft(EMPTY_FILTERS)}>
             Limpar tudo
           </button>

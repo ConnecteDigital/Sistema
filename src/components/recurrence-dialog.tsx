@@ -164,7 +164,7 @@ export function RecurrenceDialog({ stats, onClose }: { stats: SeriesStats; onClo
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
           {r.active ? (
             <Button
               variant={confirmCancel ? "danger" : "ghost"}

@@ -186,7 +186,7 @@ export function CardDialog({ card, onClose }: { card: CreditCard | null; onClose
               </label>
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
+          <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
             {card && !confirmDelete && (
               <Button type="button" variant="ghost" size="md" className="text-destructive-foreground" onClick={() => setConfirmDelete(true)}>
                 <Trash2 /> Excluir
@@ -330,7 +330,7 @@ export function PurchaseDialog({ cardId, onClose }: { cardId: string | null; onC
               <input className={inputClass} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
             </Field>
           </div>
-          <div className="flex items-center gap-2 rounded-b-xl border-t bg-muted/60 px-5 py-3">
+          <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
             <span className="flex-1 text-[12px] text-destructive-foreground">{message}</span>
             <Button type="button" size="md" onClick={onClose}>
               Cancelar

@@ -123,7 +123,9 @@ export function PopoverContent({ className, align = "end", ...props }: React.Com
       <PopoverPrimitive.Content
         align={align}
         sideOffset={6}
-        className={cn("z-50 rounded-xl border bg-popover p-2 shadow-xl outline-none animate-pop-in", className)}
+        collisionPadding={8}
+        // Nunca passa da tela: em monitores baixos o conteúdo rola por dentro.
+        className={cn("z-50 max-h-[var(--radix-popover-content-available-height)] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-2 shadow-xl outline-none animate-pop-in", className)}
         {...props}
       />
     </PopoverPrimitive.Portal>

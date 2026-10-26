@@ -46,6 +46,15 @@ export default function ContatosPage() {
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [page, setPage] = React.useState(0);
   const [editing, setEditing] = React.useState<Contact | "new" | null>(null);
+  // Cadastro recém-criado: a lista vai até ele e o destaca.
+  const [created, setCreated] = React.useState<string | null>(null);
+  const onCreated = (id: string, name: string) => {
+    setKind("all");
+    setQuery(name);
+    setPage(0);
+    setCreated(id);
+    setTimeout(() => setCreated((c) => (c === id ? null : c)), 4000);
+  };
   const period = React.useMemo(
     () => range ?? (today ? { start: startOfMonth(addMonths(today, -11)), end: endOfMonth(today) } : { start: "", end: "" }),
     [range, today],
@@ -231,7 +240,7 @@ export default function ContatosPage() {
               {visible.map((r, i) => {
                 const c = r.contact;
                 return (
-                  <tr key={c.id} onClick={() => setEditing(c)} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }} className="group cursor-pointer border-b animate-row-in hover:bg-accent/60">
+                  <tr key={c.id} onClick={() => setEditing(c)} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }} className={cn("group cursor-pointer border-b animate-row-in hover:bg-accent/60", c.id === created && "bg-brand-soft animate-flash")}>
                     <td className="max-w-[300px] py-2.5 pl-4 pr-3">
                       <div className="flex items-center gap-2.5">
                         <ContactAvatar name={c.name} className="size-7 text-[10px]" />
@@ -296,7 +305,7 @@ export default function ContatosPage() {
         </div>
       </Card>
 
-      {editing && <ContactDialog contact={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <ContactDialog contact={editing === "new" ? null : editing} onClose={() => setEditing(null)} onCreated={onCreated} />}
     </>
   );
 }

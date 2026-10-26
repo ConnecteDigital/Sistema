@@ -26,7 +26,7 @@ function Field({ label, hint, children, className }: { label: string; hint?: Rea
   );
 }
 
-export function ContactDialog({ contact, onClose, onCreated }: { contact: Contact | null; onClose: () => void; onCreated?: (id: string) => void }) {
+export function ContactDialog({ contact, onClose, onCreated }: { contact: Contact | null; onClose: () => void; onCreated?: (id: string, name: string) => void }) {
   const { data, reload } = useFinance();
   const { open: openMovement } = useMovementDialog();
   const toast = useToast();
@@ -75,10 +75,22 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
     }
   }
 
+  // Erro aparece no rodapé e também num aviso flutuante, para não passar despercebido.
+  const fail = (text: string) => {
+    setMessage({ tone: "error", text });
+    toast({ tone: "error", title: text });
+  };
+
   async function save(deleted?: boolean) {
-    if (!name.trim()) return setMessage({ tone: "error", text: "Informe o nome." });
-    if (status === "invalid") return setMessage({ tone: "error", text: "CPF/CNPJ inválido — confira os números." });
-    if (!isCustomer && !isSupplier) return setMessage({ tone: "error", text: "Marque se é cliente, fornecedor ou os dois." });
+    if (!name.trim()) {
+      setTab("dados");
+      return fail("Informe o nome do cliente/fornecedor.");
+    }
+    if (status === "invalid") {
+      setTab("dados");
+      return fail("CPF/CNPJ inválido — confira os números ou deixe em branco.");
+    }
+    if (!isCustomer && !isSupplier) return fail("Marque se é cliente, fornecedor ou os dois.");
     setBusy(true);
     try {
       const input = {
@@ -94,12 +106,12 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
         ...(deleted !== undefined ? { deleted } : {}),
       };
       if (contact) await updateContact(contact.id, input);
-      else onCreated?.(await insertContact(input));
+      else onCreated?.(await insertContact(input), input.name);
       await reload();
       toast({ tone: "success", title: deleted ? "Cadastro arquivado" : deleted === false ? "Cadastro restaurado" : contact ? "Cadastro atualizado" : "Cadastro criado" });
       onClose();
     } catch (e) {
-      setMessage({ tone: "error", text: e instanceof Error ? e.message : "Não foi possível salvar." });
+      fail(`Não foi possível salvar: ${e instanceof Error ? e.message : "erro desconhecido"}`);
     } finally {
       setBusy(false);
     }
@@ -154,6 +166,9 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
                   </button>
                 ))}
               </div>
+              <Field label="Nome" hint="Como você chama o contato — é o que aparece nas telas.">
+                <input autoFocus={!contact} className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
               <Field
                 label="CPF / CNPJ"
                 hint={
@@ -176,9 +191,6 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
                     </Button>
                   )}
                 </div>
-              </Field>
-              <Field label="Nome" hint="Como você chama o contato — é o que aparece nas telas.">
-                <input autoFocus={!contact} className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="E-mail">

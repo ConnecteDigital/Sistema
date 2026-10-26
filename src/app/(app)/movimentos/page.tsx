@@ -30,6 +30,7 @@ import { useFinance } from "@/components/finance-provider";
 import { HeroCard, KpiCard } from "@/components/kpi";
 import { LoadingState } from "@/components/loading-state";
 import { useMovementDialog } from "@/components/movement-dialog";
+import { MultiSelect } from "@/components/multi-select";
 import { PageHeader } from "@/components/page-header";
 import { TransfersPanel } from "@/components/transfers-panel";
 import { Button } from "@/components/ui/button";
@@ -46,17 +47,20 @@ type SortKey = "date" | "description" | "amount";
 type TypeFilter = "all" | "inflow" | "outflow";
 type Status = "all" | "paid" | "open" | "overdue";
 
+/** Contas, grupos, categorias e clientes aceitam vários de uma vez (vazio = todos). */
 interface Filters {
-  accountId: string;
+  accountIds: string[];
   status: Status;
   regime: "cash" | "competence";
-  groupId: string;
-  categoryId: string;
-  contactId: string;
+  groupIds: string[];
+  categoryIds: string[];
+  contactIds: string[];
   min: string;
   max: string;
 }
-const EMPTY_FILTERS: Filters = { accountId: "", status: "all", regime: "cash", groupId: "", categoryId: "", contactId: "", min: "", max: "" };
+const EMPTY_FILTERS: Filters = { accountIds: [], status: "all", regime: "cash", groupIds: [], categoryIds: [], contactIds: [], min: "", max: "" };
+const isActive = (f: Filters, k: keyof Filters) => (Array.isArray(f[k]) ? (f[k] as string[]).length > 0 : f[k] !== EMPTY_FILTERS[k]);
+const fromParam = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
 
 const selectClass = "h-8 w-full rounded-md border border-input bg-card px-2 text-[13px] outline-none focus:ring-2 focus:ring-ring/40";
 
@@ -95,9 +99,9 @@ export default function MovimentosPage() {
   // Links de outras telas: /movimentos?categoria=…&grupo=…&contato=…
   const [filters, setFilters] = React.useState<Filters>(() => ({
     ...EMPTY_FILTERS,
-    categoryId: params.get("categoria") ?? "",
-    groupId: params.get("grupo") ?? "",
-    contactId: params.get("contato") ?? "",
+    categoryIds: fromParam(params.get("categoria")),
+    groupIds: fromParam(params.get("grupo")),
+    contactIds: fromParam(params.get("contato")),
   }));
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date", dir: "asc" });
   const [page, setPage] = React.useState(0);
@@ -145,13 +149,13 @@ export default function MovimentosPage() {
     const max = filters.max ? Number(filters.max.replace(",", ".")) : null;
     const rows = inPeriod.filter((m) => {
       if (type !== "all" && m.type !== type) return false;
-      if (filters.accountId && m.bankAccountId !== filters.accountId) return false;
+      if (filters.accountIds.length && !filters.accountIds.includes(m.bankAccountId)) return false;
       if (filters.status === "paid" && !m.paid) return false;
       if (filters.status === "open" && m.paid) return false;
       if (filters.status === "overdue" && (m.paid || m.date >= today)) return false;
-      if (filters.categoryId && m.categoryId !== filters.categoryId) return false;
-      if (filters.groupId && lookups.cat.get(m.categoryId ?? "")?.groupId !== filters.groupId) return false;
-      if (filters.contactId && m.contactId !== filters.contactId) return false;
+      if (filters.categoryIds.length && !filters.categoryIds.includes(m.categoryId ?? "")) return false;
+      if (filters.groupIds.length && !filters.groupIds.includes(lookups.cat.get(m.categoryId ?? "")?.groupId ?? "")) return false;
+      if (filters.contactIds.length && !filters.contactIds.includes(m.contactId ?? "")) return false;
       if (min !== null && m.amount < min) return false;
       if (max !== null && m.amount > max) return false;
       if (q) {
@@ -185,7 +189,7 @@ export default function MovimentosPage() {
   const rows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
   const total = filtered.reduce((s, m) => s + (m.type === "inflow" ? m.amount : -m.amount), 0);
 
-  const activeFilters = (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).filter((k) => filters[k] !== EMPTY_FILTERS[k]).length;
+  const activeFilters = (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).filter((k) => isActive(filters, k)).length;
   const selectedRows = filtered.filter((m) => selected.has(m.id));
   const allOnPage = rows.length > 0 && rows.every((m) => selected.has(m.id));
 
@@ -225,10 +229,11 @@ export default function MovimentosPage() {
     setPage(0);
     setSelected(new Set());
   };
-  const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const categories = data.categories
-    .filter((c) => !filters.groupId || c.groupId === filters.groupId)
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const groups = [...data.groups].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((g) => ({ id: g.id, name: g.name, color: groupColor(g.color) }));
+  const groupById = new Map(data.groups.map((g) => [g.id, g]));
+  const categories = [...data.categories]
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .map((c) => ({ id: c.id, name: c.name, groupId: c.groupId, hint: groupById.get(c.groupId)?.name, color: groupColor(groupById.get(c.groupId)?.color) }));
   const contacts = data.contacts.filter((c) => !c.deleted).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
   return (
@@ -353,6 +358,41 @@ export default function MovimentosPage() {
             <Download />
           </Button>
         </div>
+
+        {activeFilters > 0 && (
+          // Filtros aplicados, cada um com um "x" para tirar só ele.
+          <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 text-[12px] animate-fade-in">
+            {(
+              [
+                ["accountIds", data.accounts],
+                ["groupIds", groups],
+                ["categoryIds", categories],
+                ["contactIds", contacts],
+              ] as const
+            ).flatMap(([key, list]) =>
+              filters[key].map((id) => (
+                <FilterChip
+                  key={key + id}
+                  label={list.find((o) => o.id === id)?.name ?? "—"}
+                  onRemove={() => {
+                    setFilters((f) => ({ ...f, [key]: f[key].filter((v) => v !== id) }));
+                    resetPage();
+                  }}
+                />
+              )),
+            )}
+            {filters.status !== "all" && (
+              <FilterChip label={{ paid: "Efetuados", open: "Em aberto", overdue: "Vencidos" }[filters.status]} onRemove={() => setFilters((f) => ({ ...f, status: "all" }))} />
+            )}
+            {filters.regime === "competence" && <FilterChip label="Regime de competência" onRemove={() => setFilters((f) => ({ ...f, regime: "cash" }))} />}
+            {(filters.min || filters.max) && (
+              <FilterChip label={`Valor ${filters.min ? `≥ R$ ${filters.min}` : ""}${filters.min && filters.max ? " e " : ""}${filters.max ? `≤ R$ ${filters.max}` : ""}`} onRemove={() => setFilters((f) => ({ ...f, min: "", max: "" }))} />
+            )}
+            <button className="ml-1 text-muted-foreground hover:text-foreground hover:underline" onClick={() => setFilters(EMPTY_FILTERS)}>
+              Limpar filtros
+            </button>
+          </div>
+        )}
 
         {selectedRows.length > 0 && (
           <div className="flex items-center gap-2 border-y bg-brand-soft px-4 py-2 text-[12.5px] animate-pop-in">
@@ -586,6 +626,17 @@ function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
   return dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 }
 
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand-soft py-0.5 pl-2.5 pr-1 text-brand-foreground">
+      {label}
+      <button onClick={onRemove} className="rounded-full p-0.5 hover:bg-brand/15" aria-label={`Remover filtro ${label}`}>
+        <X className="size-3" />
+      </button>
+    </span>
+  );
+}
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="mb-1 block text-[12px] font-medium">{children}</span>;
 }
@@ -647,8 +698,8 @@ function FiltersPopover({
   count: number;
   onApply: (f: Filters) => void;
   accounts: { id: string; name: string }[];
-  groups: { id: string; name: string }[];
-  categories: { id: string; name: string }[];
+  groups: { id: string; name: string; color?: string }[];
+  categories: { id: string; name: string; groupId: string; hint?: string; color?: string }[];
   contacts: { id: string; name: string }[];
 }) {
   const [open, setOpen] = React.useState(false);
@@ -672,17 +723,10 @@ function FiltersPopover({
         <div className="space-y-4 p-4">
           <div className="text-eyebrow uppercase text-muted-foreground">Conta e situação</div>
           <div className="grid grid-cols-2 gap-3">
-            <label>
-              <FieldLabel>Conta</FieldLabel>
-              <select className={selectClass} value={draft.accountId} onChange={(e) => set("accountId", e.target.value)}>
-                <option value="">Todas as contas</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div>
+              <FieldLabel>Contas</FieldLabel>
+              <MultiSelect options={accounts} value={draft.accountIds} onChange={(v) => set("accountIds", v)} all="Todas as contas" noun="contas" />
+            </div>
             <label>
               <FieldLabel>Status</FieldLabel>
               <select className={selectClass} value={draft.status} onChange={(e) => set("status", e.target.value as Status)}>
@@ -702,39 +746,30 @@ function FiltersPopover({
           </div>
           <div className="text-eyebrow uppercase text-muted-foreground">Classificação</div>
           <div className="grid grid-cols-2 gap-3">
-            <label>
-              <FieldLabel>Grupo de categoria</FieldLabel>
-              <select className={selectClass} value={draft.groupId} onChange={(e) => setDraft((d) => ({ ...d, groupId: e.target.value, categoryId: "" }))}>
-                <option value="">Todos os grupos</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <FieldLabel>Categoria</FieldLabel>
-              <select className={selectClass} value={draft.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
-                <option value="">Todas as categorias</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="col-span-2">
-              <FieldLabel>Cliente / Fornecedor</FieldLabel>
-              <select className={selectClass} value={draft.contactId} onChange={(e) => set("contactId", e.target.value)}>
-                <option value="">Todos</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div>
+              <FieldLabel>Grupos de categoria</FieldLabel>
+              <MultiSelect
+                options={groups}
+                value={draft.groupIds}
+                onChange={(v) => setDraft((d) => ({ ...d, groupIds: v, categoryIds: v.length ? d.categoryIds.filter((id) => v.includes(categories.find((c) => c.id === id)?.groupId ?? "")) : d.categoryIds }))}
+                all="Todos os grupos"
+                noun="grupos"
+              />
+            </div>
+            <div>
+              <FieldLabel>Categorias</FieldLabel>
+              <MultiSelect
+                options={categories.filter((c) => !draft.groupIds.length || draft.groupIds.includes(c.groupId))}
+                value={draft.categoryIds}
+                onChange={(v) => set("categoryIds", v)}
+                all="Todas as categorias"
+                noun="categorias"
+              />
+            </div>
+            <div className="col-span-2">
+              <FieldLabel>Clientes / Fornecedores</FieldLabel>
+              <MultiSelect options={contacts} value={draft.contactIds} onChange={(v) => set("contactIds", v)} all="Todos" noun="clientes" searchable />
+            </div>
           </div>
           <div className="text-eyebrow uppercase text-muted-foreground">Valor do lançamento</div>
           <div className="grid grid-cols-2 gap-3">

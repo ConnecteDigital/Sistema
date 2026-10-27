@@ -157,7 +157,7 @@ export default function CartoesPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
             <HeroCard label="Faturas atuais" amount={currentTotal} sub={`${cards.length} ${cards.length === 1 ? "cartão" : "cartões"} · em aberto`} />
             <KpiCard label="Limite disponível" tone="info" amount={available} sub={`de ${formatBRL(totalLimit)}`} />
             <KpiCard

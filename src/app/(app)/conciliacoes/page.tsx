@@ -304,7 +304,7 @@ export default function ConciliacoesPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
             <HeroCard label="Saldo no banco" amount={stmt.balance ?? 0} sub={balanceDate ? `Em ${formatDate(balanceDate)} · ${fileName}` : fileName} />
             <KpiCard label="Saldo no sistema" tone="info" amount={systemBalance} sub={`${accountName(account)} na mesma data`} />
             <KpiCard

@@ -196,3 +196,27 @@
   table { font-size: 10px; }
   @page { size: A4 landscape; margin: 12mm; }
 }
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* Celular: nada pode passar da largura da tela. */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Itens de grid não podem esticar a coluna por causa de texto longo (quebrava o layout no celular). */
+@layer base {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grid > * {
+    min-width: 0;
+  }
+}

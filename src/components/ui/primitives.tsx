@@ -64,14 +64,14 @@ export function Segmented<T extends string>({
   size?: "sm" | "xs";
 }) {
   return (
-    <div className="inline-flex rounded-lg bg-muted p-0.5">
+    <div className="inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-0.5 [scrollbar-width:none]">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 font-medium transition-all [&_svg]:size-3.5",
+            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 font-medium transition-all [&_svg]:size-3.5",
             size === "sm" ? "h-6 text-[12.5px]" : "h-5 text-[11.5px]",
             value === o.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
           )}
@@ -95,14 +95,14 @@ export function UnderlineTabs<T extends string>({
   options: { value: T; label: React.ReactNode }[];
 }) {
   return (
-    <div className="flex gap-1 border-b">
+    <div className="flex gap-1 overflow-x-auto border-b [scrollbar-width:none]">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "relative -mb-px inline-flex h-9 items-center gap-1.5 px-2.5 text-[13px] transition-colors",
+            "relative -mb-px inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 text-[13px] transition-colors",
             value === o.value
               ? "font-medium text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
               : "text-muted-foreground hover:text-foreground",

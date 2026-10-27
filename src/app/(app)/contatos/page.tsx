@@ -159,7 +159,7 @@ export default function ContatosPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         <HeroCard label="Total" count={live.length} sub={`${counts.active} com movimento no período`} onClick={kind !== "all" ? () => setKind("all") : undefined} dimmed={kind !== "all"} />
         <KpiCard label="Clientes" tone="success" value={String(counts.customers)} sub={`${formatBRL(totalIn)} recebidos`} active={kind === "customer"} dimmed={kind !== "all" && kind !== "customer"} onClick={() => setKind((k) => (k === "customer" ? "all" : "customer"))} />
         <KpiCard label="Fornecedores" tone="danger" value={String(counts.suppliers)} sub={`${formatBRL(totalOut)} pagos`} active={kind === "supplier"} dimmed={kind !== "all" && kind !== "supplier"} onClick={() => setKind((k) => (k === "supplier" ? "all" : "supplier"))} />

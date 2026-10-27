@@ -85,7 +85,7 @@ export default function PainelPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         {focus ? (
           <KpiCard label="Saldo atual" tone="neutral" icon={<Wallet />} amount={summary.current} sub={`Projeção · ${formatBRL(summary.projection)}`} onClick={() => setFocus(null)} />
         ) : (

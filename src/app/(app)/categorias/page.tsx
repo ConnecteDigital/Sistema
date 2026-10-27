@@ -170,7 +170,7 @@ export default function CategoriasPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         <HeroCard label="Resultado do período" amount={result} sub="Receitas − despesas pagas" />
         <KpiCard label="Receitas" tone="success" amount={stats.inflow} sub="Pagas, por categoria" active={typeFilter === "inflow"} onClick={() => setTypeFilter((t) => (t === "inflow" ? "all" : "inflow"))} />
         <KpiCard label="Despesas" tone="danger" amount={stats.outflow} sub="Pagas, por categoria" active={typeFilter === "outflow"} onClick={() => setTypeFilter((t) => (t === "outflow" ? "all" : "outflow"))} />

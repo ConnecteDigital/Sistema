@@ -11,6 +11,7 @@ import {
   Lock,
   LogOut,
   Moon,
+  Menu,
   PanelLeft,
   Plus,
   Repeat,
@@ -67,7 +68,7 @@ function useTheme() {
   return { dark, toggle: () => setTheme(dark ? "light" : "dark") };
 }
 
-function Sidebar({ collapsed }: { collapsed: boolean }) {
+function Sidebar({ collapsed, onNavigate, className }: { collapsed: boolean; onNavigate?: () => void; className?: string }) {
   const pathname = usePathname();
   const { data } = useFinance();
   const { open } = useMovementDialog();
@@ -77,6 +78,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
     <aside
       className={cn(
         "sticky top-0 flex h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200",
+        className,
         collapsed ? "w-[52px]" : "w-[224px]",
       )}
     >
@@ -94,7 +96,11 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
         )}
       </div>
       <div className="px-2 pb-3">
-        <Button variant="primary" size="md" className={cn("w-full justify-start", collapsed && "justify-center px-0")} onClick={() => open({ kind: "inflow" })}>
+        <Button variant="primary" size="md" className={cn("w-full justify-start", collapsed && "justify-center px-0")} onClick={() => {
+            onNavigate?.();
+            open({ kind: "inflow" });
+          }}
+        >
           <Plus />
           {!collapsed && "Novo lançamento"}
         </Button>
@@ -111,6 +117,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onNavigate}
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         "flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] transition-colors",
@@ -132,6 +139,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
       <div className="space-y-1 px-2 pb-3">
         <Link
           href="/configuracoes"
+          onClick={onNavigate}
           className={cn(
             "flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
             collapsed && "justify-center px-0",
@@ -176,23 +184,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const collapsed = sidebar === "collapsed";
   const { dark, toggle } = useTheme();
   const toggleSidebar = () => setSidebar(collapsed ? "open" : "collapsed");
+  // Celular: o menu vira uma gaveta que abre por cima da tela.
+  const [drawer, setDrawer] = React.useState(false);
   return (
     <ToastProvider>
     <MovementDialogHost>
       <div className="flex min-h-dvh">
-        <Sidebar collapsed={collapsed} />
+        <div className="hidden md:block">
+          <Sidebar collapsed={collapsed} />
+        </div>
+        {drawer && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-fade-in" onClick={() => setDrawer(false)} />
+            <div className="absolute inset-y-0 left-0 shadow-2xl animate-[drawer-in_0.22s_cubic-bezier(0.16,1,0.3,1)]">
+              <Sidebar collapsed={false} onNavigate={() => setDrawer(false)} className="w-[264px]" />
+            </div>
+          </div>
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
-            <button onClick={toggleSidebar} className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Abrir ou recolher o menu">
+            <button onClick={toggleSidebar} className="hidden rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground md:block" aria-label="Abrir ou recolher o menu">
               <PanelLeft className="size-4" />
             </button>
-            <div className="h-4 w-px bg-border" />
+            <button onClick={() => setDrawer(true)} className="-ml-1 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground md:hidden" aria-label="Abrir o menu">
+              <Menu className="size-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="size-6 md:hidden" />
+            <span className="text-[13.5px] font-semibold md:hidden">Financeiro</span>
+            <div className="hidden h-4 w-px bg-border md:block" />
             <div className="flex-1" />
             <button onClick={toggle} className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Alternar tema">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
           </header>
-          <main id="main-content" className="mx-auto w-full max-w-[1240px] flex-1 px-5 pb-10 pt-7 md:px-6">
+          <main id="main-content" className="mx-auto w-full min-w-0 max-w-[1240px] flex-1 px-3.5 pb-10 pt-5 sm:px-5 md:px-6 md:pt-7">
             {children}
           </main>
         </div>

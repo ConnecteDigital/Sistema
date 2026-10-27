@@ -111,7 +111,7 @@ export default function RelatoriosPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         <KpiCard label="Saldo inicial" tone="neutral" icon={<Wallet />} amount={opening} sub={`Em ${formatDate(addDays(period.start, -1))}`} />
         <KpiCard label="Entradas" tone="success" amount={inflow} sub={formatRange(period.start, period.end)} />
         <KpiCard label="Saídas" tone="danger" amount={outflow} sub={formatRange(period.start, period.end)} />

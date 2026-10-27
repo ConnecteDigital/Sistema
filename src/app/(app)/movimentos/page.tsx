@@ -249,7 +249,7 @@ export default function MovimentosPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         <HeroCard
           label="Total de lançamentos"
           count={inPeriod.length}
@@ -423,7 +423,67 @@ export default function MovimentosPage() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Celular: lista em cartões (a tabela larga fica só no computador). */}
+        <ul className="border-t md:hidden">
+          {rows.map((m) => {
+            const contact = lookups.contact.get(m.contactId ?? "");
+            const cat = lookups.cat.get(m.categoryId ?? "");
+            const st = statusOf(m, today);
+            const isIn = m.type === "inflow";
+            return (
+              <li key={m.id} className={cn("flex items-start gap-3 border-b px-4 py-3 active:bg-accent/60", selected.has(m.id) && "bg-brand-soft/60")} onClick={() => open({ kind: m.type, movement: m })}>
+                <span onClick={(e) => e.stopPropagation()} className="pt-0.5">
+                  <Checkbox
+                    checked={selected.has(m.id)}
+                    onCheckedChange={() =>
+                      setSelected((s) => {
+                        const n = new Set(s);
+                        if (n.has(m.id)) n.delete(m.id);
+                        else n.add(m.id);
+                        return n;
+                      })
+                    }
+                    aria-label={`Selecionar ${m.description}`}
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 text-[13.5px] font-medium leading-snug">{contact?.name ?? m.description ?? "—"}</span>
+                    <span className={cn("shrink-0 text-[13.5px] font-semibold tabular", isIn ? "text-foreground" : "text-destructive-foreground")}>
+                      {isIn ? "" : "− "}
+                      {formatBRL(m.amount)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
+                    {contact ? `${m.description} · ` : ""}
+                    {cat?.name ?? "Sem categoria"}
+                    {m.totalInstallments > 0 ? ` · ${m.installment}/${m.totalInstallments}` : ""}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-[11.5px] text-muted-foreground">
+                    <span className="tabular">
+                      {formatDate(m.date)} · {weekday(m.date).replace("-feira", "")}
+                    </span>
+                    <Badge tone={st.tone} dot>
+                      {st.label}
+                    </Badge>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+          {rows.length === 0 && <li className="px-4 py-12 text-center text-[13px] text-muted-foreground">Nenhum lançamento encontrado. Mude o período, a busca ou os filtros.</li>}
+          {rows.length > 0 && (
+            <li className="flex items-center justify-between bg-muted/50 px-4 py-3 text-[13px] font-semibold">
+              <span>Total geral</span>
+              <span className={cn("tabular", total < 0 && "text-destructive-foreground")}>
+                {total >= 0 ? "+ " : ""}
+                {formatBRL(total)}
+              </span>
+            </li>
+          )}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[860px] text-[13px]">
             <thead>
               <tr className="border-y bg-muted/40 text-left text-[12px] text-muted-foreground">

@@ -94,7 +94,7 @@ export function KpiCard({
         }
       }}
       className={cn(
-        "relative flex min-h-[132px] flex-col p-5 animate-pop-in transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out",
+        "relative flex min-h-[108px] flex-col p-3.5 animate-pop-in transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out sm:min-h-[132px] sm:p-5",
         interactive && "cursor-pointer select-none hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active && ACTIVE_RING[tone],
         active && "-translate-y-1 shadow-lg",
@@ -108,7 +108,7 @@ export function KpiCard({
           {icon ?? (tone !== "neutral" && ICONS[tone])}
         </span>
       </div>
-      <div className={cn("mt-3 text-[24px] font-semibold tracking-tight tabular", VALUE[tone])}>{amount !== undefined ? <AnimatedBRL value={amount} /> : value}</div>
+      <div className={cn("mt-2 break-words text-[17px] font-semibold tracking-tight tabular sm:mt-3 sm:text-[24px]", VALUE[tone])}>{amount !== undefined ? <AnimatedBRL value={amount} /> : value}</div>
       {sub && <div className="mt-auto pt-2 text-[11.5px] text-muted-foreground">{sub}</div>}
     </Card>
   );
@@ -155,7 +155,7 @@ export function HeroCard({
     <div
       onClick={onClick}
       className={cn(
-        "relative flex min-h-[132px] flex-col overflow-hidden rounded-xl p-5 text-white animate-pop-in transition-[transform,opacity] duration-300",
+        "relative col-span-2 flex min-h-[120px] flex-col overflow-hidden rounded-xl p-4 text-white animate-pop-in transition-[transform,opacity] duration-300 sm:col-span-1 sm:min-h-[132px] sm:p-5",
         onClick && "cursor-pointer hover:-translate-y-0.5",
         dimmed && "scale-[0.98] opacity-70",
       )}

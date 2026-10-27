@@ -71,7 +71,7 @@ export default function ContasPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
         <HeroCard label="Saldo total" amount={total} sub={`${activeCount} contas ativas`} />
         <KpiCard label="Movimentação no período" tone={netTotal >= 0 ? "success" : "danger"} amount={netTotal} sub="Entradas − saídas baixadas ± transferências" />
         <KpiCard label="Lançamentos no período" tone="info" value={String(rows.reduce((s, r) => s + r.count, 0))} sub="Inclui transferências entre contas" />

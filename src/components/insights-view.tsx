@@ -116,7 +116,7 @@ export function InsightsView({ period, accountIds }: { period: DateRange; accoun
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         <KpiCard label="Faturamento recebido" tone="success" amount={ins.revenue} sub="Entradas pagas no período" />
         <KpiCard label="Clientes que pagaram" tone="info" icon={<Users />} value={String(ins.activeClients)} sub={`${ins.newClients.length} novos no período`} />
         <KpiCard label="Ticket médio" tone="neutral" amount={ins.avgTicket} sub="Por cliente, por mês" />

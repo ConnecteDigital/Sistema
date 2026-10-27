@@ -13,6 +13,12 @@ import { useMovementDialog } from "./movement-dialog";
 
 export type Tab = "open" | "paid" | "overdue";
 
+const subscribeWidth = (cb: () => void) => {
+  const mq = window.matchMedia("(min-width: 640px)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+
 /** Card "O que entra" / "O que sai" do painel. */
 export function LedgerPanel({
   type,
@@ -41,6 +47,9 @@ export function LedgerPanel({
     [data],
   );
   const isIn = type === "inflow";
+  // No celular as colunas Status (e Categoria) somem; as colunas mescladas do rodapé acompanham.
+  const desktop = React.useSyncExternalStore(subscribeWidth, () => window.matchMedia("(min-width: 640px)").matches, () => true);
+  const hiddenCols = desktop ? 0 : wide ? 2 : 1;
   const { open } = useMovementDialog();
   const { setPaid, remove } = useFinanceActions();
   const [tab, setTab] = React.useState<Tab>(initialTab);
@@ -117,8 +126,8 @@ export function LedgerPanel({
             </th>
             <th className="py-2.5 pl-1 font-normal">Data</th>
             <th className="py-2.5 font-normal">{wide ? (isIn ? "Cliente" : "Fornecedor") : isIn ? "Cliente / descrição" : "Fornecedor / descrição"}</th>
-            {wide && <th className="py-2.5 font-normal">Categoria</th>}
-            <th className="py-2.5 font-normal">Status</th>
+            {wide && desktop && <th className="py-2.5 font-normal">Categoria</th>}
+            {desktop && <th className="py-2.5 font-normal">Status</th>}
             <th className="py-2.5 pr-2 text-right font-normal">Valor</th>
           </tr>
         </thead>
@@ -129,8 +138,10 @@ export function LedgerPanel({
               <tr
                 key={m.id}
                 onClick={(e) => {
-                  // Clicar na linha marca/desmarca (menos nos botões de ação).
-                  if (!(e.target as HTMLElement).closest("button")) toggle(m.id);
+                  // Clicar na linha marca/desmarca (menos nos botões de ação); no celular abre o lançamento.
+                  if ((e.target as HTMLElement).closest("button")) return;
+                  if (window.matchMedia("(max-width: 639px)").matches) open({ kind: m.type, movement: m });
+                  else toggle(m.id);
                 }}
                 className={cn("group cursor-pointer border-b last:border-0 hover:bg-accent/50", selected.has(m.id) && "bg-brand-soft/60 hover:bg-brand-soft")}
               >
@@ -144,7 +155,7 @@ export function LedgerPanel({
                     <td className="py-2 pr-3 font-medium" title={m.description}>
                       {names.contact.get(m.contactId ?? "") ?? m.description}
                     </td>
-                    <td className="w-[22%] py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>
+                    {desktop && <td className="w-[22%] py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>}
                   </>
                 ) : (
                   <td className="max-w-0 py-2 pr-2">
@@ -152,12 +163,13 @@ export function LedgerPanel({
                       <div className="truncate">{m.description}</div>
                     ) : (
                       <>
-                        <div className="font-medium leading-snug">{names.contact.get(m.contactId) ?? m.description}</div>
+                        <div className="font-medium leading-snug [overflow-wrap:anywhere]">{names.contact.get(m.contactId) ?? m.description}</div>
                         <div className="truncate text-[11.5px] text-muted-foreground">{m.description}</div>
                       </>
                     )}
                   </td>
                 )}
+                {desktop && (
                 <td className="relative w-28 py-2.5">
                   {/* No hover as ações tomam o lugar do status, sem empurrar o nome nem o valor. */}
                   <div className="transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0">
@@ -187,15 +199,20 @@ export function LedgerPanel({
                     </button>
                   </div>
                 </td>
-                <td className="w-28 whitespace-nowrap py-2.5 pr-2 text-right">
+                )}
+                <td className="whitespace-nowrap py-2.5 pl-2 pr-2 text-right sm:w-28">
                   <span className={cn("font-semibold tabular", valueColor)}>{formatBRL(m.amount)}</span>
+                  {/* No celular o status vai embaixo do valor. */}
+                  <div className={cn("mt-0.5 text-[11px] font-medium sm:hidden", m.paid ? "text-success-foreground" : overdue ? "text-destructive-foreground" : "text-warning-foreground")}>
+                    {m.paid ? (isIn ? "Recebido" : "Pago") : overdue ? "Vencido" : isIn ? "A receber" : "A pagar"}
+                  </div>
                 </td>
               </tr>
             );
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={wide ? 6 : 5} className="py-10 text-center text-[12.5px] text-muted-foreground">
+              <td colSpan={(wide ? 6 : 5) - hiddenCols} className="py-10 text-center text-[12.5px] text-muted-foreground">
                 Nada por aqui no período.
               </td>
             </tr>
@@ -205,7 +222,7 @@ export function LedgerPanel({
           <tfoot>
             {picked.length > 0 && (
               <tr className="bg-brand-soft animate-fade-in">
-                <td colSpan={wide ? 5 : 4} className="py-2 pl-2">
+                <td colSpan={(wide ? 5 : 4) - hiddenCols} className="py-2 pl-2">
                   <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
                     <span className="font-medium">
                       {picked.length} selecionado{picked.length === 1 ? "" : "s"}
@@ -231,10 +248,10 @@ export function LedgerPanel({
               </tr>
             )}
             <tr className="bg-muted/70">
-              <td colSpan={wide ? 5 : 4} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
+              <td colSpan={(wide ? 5 : 4) - hiddenCols} className="py-2.5 pl-2 text-eyebrow uppercase text-muted-foreground">
                 Total
               </td>
-              <td className={cn("py-2.5 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(total)}</td>
+              <td className={cn("whitespace-nowrap py-2.5 pr-2 text-right font-semibold tabular", valueColor)}>{formatBRL(total)}</td>
             </tr>
           </tfoot>
         )}

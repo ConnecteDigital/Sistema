@@ -9,7 +9,7 @@ export function LoadingState({ error }: { error?: string | null }) {
   return (
     <div className="space-y-3" aria-busy="true">
       <div className="h-14 w-72 animate-pulse rounded-lg bg-muted" />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="h-[132px] animate-pulse rounded-xl bg-muted" />
         ))}

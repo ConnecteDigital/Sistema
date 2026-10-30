@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Copy,
   Download,
+  FileSpreadsheet,
+  FileText,
   Filter,
   MoreHorizontal,
   Pencil,
@@ -208,6 +210,35 @@ export default function MovimentosPage() {
     URL.revokeObjectURL(url);
   };
 
+  // PDF com o que está na tela: período, busca, tipo e filtros aplicados (todas as páginas da lista).
+  const exportPDF = async () => {
+    const list = (label: string, ids: string[], name: (id: string) => string | undefined) => (ids.length ? [`${label}: ${ids.map((id) => name(id) ?? "—").join(", ")}`] : []);
+    const filterLines = [
+      ...(type !== "all" ? [`Tipo: ${type === "inflow" ? "Entradas" : "Saídas"}`] : []),
+      ...(query.trim() ? [`Busca: "${query.trim()}"`] : []),
+      ...(filters.status !== "all" ? [`Situação: ${{ paid: "Efetuados", open: "Em aberto", overdue: "Vencidos" }[filters.status]}`] : []),
+      ...list("Contas", filters.accountIds, (id) => lookups.account.get(id)?.name),
+      ...list("Grupos", filters.groupIds, (id) => lookups.grp.get(id)?.name),
+      ...list("Categorias", filters.categoryIds, (id) => lookups.cat.get(id)?.name),
+      ...list("Clientes/Fornecedores", filters.contactIds, (id) => lookups.contact.get(id)?.name),
+      ...(filters.min || filters.max ? [`Valor: ${filters.min ? `a partir de R$ ${filters.min}` : ""} ${filters.max ? `até R$ ${filters.max}` : ""}`.trim()] : []),
+      ...(filters.regime === "competence" ? ["Regime de competência"] : []),
+    ];
+    const { downloadMovementsPdf } = await import("@/lib/pdf-movements");
+    await downloadMovementsPdf({
+      company: data.companyName,
+      period: range,
+      filters: filterLines.length ? [`Filtros: ${filterLines.join(" · ")}`] : [],
+      rows: filtered,
+      names: {
+        account: (id) => lookups.account.get(id)?.name ?? "",
+        category: (id) => lookups.cat.get(id ?? "")?.name ?? "",
+        contact: (id) => lookups.contact.get(id ?? "")?.name ?? "",
+      },
+      today,
+    });
+  };
+
   // Card selecionado no topo (atalho para os filtros de tipo e situação).
   const cardFocus: null | "inflow" | "outflow" | "transfer" | "overdue" = showTransfers
     ? "transfer"
@@ -354,9 +385,23 @@ export default function MovimentosPage() {
             ]}
           />
           <div className="flex-1" />
-          <Button size="icon" onClick={exportCSV} title="Exportar CSV" aria-label="Exportar CSV">
-            <Download />
-          </Button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button title="Baixar relatório" aria-label="Baixar relatório">
+                <Download /> <span className="hidden sm:inline">Exportar</span>
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-48 rounded-xl border bg-popover p-1 shadow-xl animate-pop-in">
+                <DropdownMenu.Item onSelect={() => void exportPDF()} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-accent">
+                  <FileText className="size-3.5 text-muted-foreground" /> Baixar PDF
+                </DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={exportCSV} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-accent">
+                  <FileSpreadsheet className="size-3.5 text-muted-foreground" /> Baixar planilha (Excel/CSV)
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
 
         {activeFilters > 0 && (

@@ -5,7 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
 import { addDays, addMonths } from "@/lib/dates";
-import { deleteMovements, insertMovements, insertRecurrence, insertTransfer, updateMovement } from "@/lib/mutations";
+import { applyAmountToNext, deleteMovements, insertMovements, insertRecurrence, insertTransfer, listAmountChanges, logAmountChange, updateMovement, type AmountChange } from "@/lib/mutations";
 import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -123,6 +123,9 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const [saving, setSaving] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  // Mudou o valor de algo que se repete: vale só para este mês ou também para os próximos?
+  const [scope, setScope] = React.useState<"only_this" | "this_and_next">("only_this");
+  const [history, setHistory] = React.useState<AmountChange[] | null>(null);
 
   const isIn = kind === "inflow";
   const groupType = new Map(data?.groups.map((g) => [g.id, g]) ?? []);
@@ -134,6 +137,34 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const settling = !!editing && !editing.paid && paid && kind !== "transfer";
   const receivedValue = received ? parseMoney(received) : parseMoney(amount);
   const settleDiff = Math.round((parseMoney(amount) - receivedValue) * 100) / 100;
+
+  const newValue = parseMoney(amount);
+  const amountChanged = !!editing && kind !== "transfer" && newValue > 0 && Math.abs(newValue - editing.amount) >= 0.005;
+  // Próximos lançamentos em aberto da mesma série (ou, sem série, do mesmo cliente, categoria e descrição).
+  const followers = React.useMemo(() => {
+    if (!editing || !data) return [];
+    return data.movements
+      .filter(
+        (m) =>
+          m.id !== editing.id &&
+          !m.paid &&
+          m.type === editing.type &&
+          m.date > editing.date &&
+          (editing.recurrenceId
+            ? m.recurrenceId === editing.recurrenceId
+            : !!editing.contactId && !m.recurrenceId && m.contactId === editing.contactId && m.categoryId === editing.categoryId && m.description === editing.description),
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [data, editing]);
+
+  React.useEffect(() => {
+    if (tab !== "adicionais" || !editing || history) return;
+    let cancelled = false;
+    void listAmountChanges(editing.id, editing.recurrenceId).then((h) => !cancelled && setHistory(h));
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, editing, history]);
 
   const accent = kind === "inflow" ? "bg-success" : kind === "outflow" ? "bg-destructive" : "bg-info";
   const noun = kind === "inflow" ? "recebimento" : kind === "outflow" ? "pagamento" : "transferência";
@@ -215,9 +246,28 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
             })),
           );
         }
+        if (editing && amountChanged) {
+          const next = scope === "this_and_next" ? followers : [];
+          if (next.length || (scope === "this_and_next" && editing.recurrenceId)) {
+            const ids = new Set(next.map((m) => m.id));
+            applyLocal((d) => ({ ...d, movements: d.movements.map((m) => (ids.has(m.id) ? { ...m, amount: value } : m)) }));
+            await applyAmountToNext([...ids], value, editing.recurrenceId);
+          }
+          await logAmountChange({
+            movementId: editing.id,
+            recurrenceId: editing.recurrenceId,
+            contactId: contactId || null,
+            description: base.description,
+            oldAmount: editing.amount,
+            newAmount: value,
+            scope: next.length ? "this_and_next" : "only_this",
+            effectiveDate: date,
+            affectedCount: 1 + next.length,
+          });
+        }
       }
       await reload();
-      toast({ tone: "success", title: settling && settleDiff > 0 ? (shortfall === "partial" ? `Baixa parcial: ${formatBRL(settleDiff)} continuam em aberto` : `Baixado com desconto de ${formatBRL(settleDiff)}`) : editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
+      toast({ tone: "success", title: amountChanged && scope === "this_and_next" && followers.length ? `Valor alterado neste e nos próximos ${followers.length} lançamento${followers.length === 1 ? "" : "s"}` : settling && settleDiff > 0 ? (shortfall === "partial" ? `Baixa parcial: ${formatBRL(settleDiff)} continuam em aberto` : `Baixado com desconto de ${formatBRL(settleDiff)}`) : editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
       if (keepOpen) {
         setAmount("");
         setDescription("");
@@ -309,6 +359,39 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
             </div>
             <div className={cn("mt-1 h-[2px] rounded-full", accent)} />
           </div>
+          {amountChanged && editing && (
+            <div className="space-y-2 rounded-xl border border-dashed bg-muted/40 p-3 animate-fade-in">
+              <div className="text-[12.5px]">
+                Valor alterado de <b className="tabular">{formatBRL(editing.amount)}</b> para <b className="tabular">{formatBRL(newValue)}</b>.{" "}
+                {followers.length ? "Essa alteração vale para:" : "Só este lançamento será alterado."}
+              </div>
+              {followers.length > 0 && (
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {(
+                    [
+                      ["only_this", "Só este mês", "Os próximos continuam como estão"],
+                      [
+                        "this_and_next",
+                        "Este e os próximos",
+                        `Mais ${followers.length} lançamento${followers.length === 1 ? "" : "s"}, até ${followers.at(-1)!.date.split("-").reverse().join("/")}${editing.recurrenceId ? ", e os meses que vierem" : ""}`,
+                      ],
+                    ] as const
+                  ).map(([k, title, sub]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setScope(k)}
+                      aria-pressed={scope === k}
+                      className={cn("rounded-lg border px-2.5 py-1.5 text-left transition-colors", scope === k ? "border-primary bg-brand-soft" : "bg-card hover:bg-accent/60")}
+                    >
+                      <div className="text-[12.5px] font-medium">{title}</div>
+                      <div className="text-[11px] text-muted-foreground">{sub}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <Field label="Data">
             <div className="flex items-center gap-3">
               <div className="relative w-[210px]">
@@ -500,6 +583,25 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
                   <Field label="Observações">
                     <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={cn(inputClass, "h-auto py-2")} />
                   </Field>
+                  {editing && history && history.length > 0 && (
+                    <Field label="Histórico de valores">
+                      <ul className="divide-y rounded-lg border text-[12px]">
+                        {history.map((h) => (
+                          <li key={h.id} className="flex items-baseline justify-between gap-3 px-2.5 py-1.5">
+                            <span>
+                              <span className="tabular text-muted-foreground line-through">{formatBRL(h.oldAmount)}</span> →{" "}
+                              <b className="tabular">{formatBRL(h.newAmount)}</b>
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {h.scope === "this_and_next" ? `a partir de ${h.effectiveDate.split("-").reverse().join("/")} (${h.affectedCount} lançamentos)` : `só ${h.effectiveDate.split("-").reverse().join("/")}`}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-muted-foreground">{new Date(h.createdAt).toLocaleDateString("pt-BR")}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </Field>
+                  )}
                 </>
               )}
               {tab === "documentos" && (

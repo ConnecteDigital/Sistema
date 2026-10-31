@@ -16,7 +16,7 @@ Sem Supabase, dá para ver as telas com os dados do export do FCS V1:
 
 ## Banco de dados
 
-1. Rode `supabase/migrations/0001_init.sql` no SQL Editor do Supabase.
+1. Rode `supabase/migrations/0001_init.sql` e depois `0002_amount_changes.sql` (histórico de alterações de valor) no SQL Editor do Supabase.
 2. Desligue o cadastro público (Authentication → Sign In / Providers) e crie o usuário do financeiro.
 3. Importe o histórico: `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run import:legacy -- dados.json`
    (o script confere os saldos de cada conta e falha se não baterem).

@@ -5,7 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
 import { formatBRL, formatDate } from "@/lib/format";
-import { cancelRecurrence, reactivateRecurrence, updateRecurrence } from "@/lib/mutations";
+import { cancelRecurrence, logAmountChange, reactivateRecurrence, updateRecurrence } from "@/lib/mutations";
 import { PERIOD_LABEL, type SeriesStats } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 import { useFinance } from "./finance-provider";
@@ -61,13 +61,25 @@ export function RecurrenceDialog({ stats, onClose }: { stats: SeriesStats; onClo
   const save = () => {
     const value = parseMoney(amount);
     if (!description.trim() || value <= 0) return setMessage("Informe descrição e valor.");
-    return act(
-      () =>
-        updateRecurrence(
-          r.id,
-          { description: description.trim(), amount: value, categoryId: categoryId || null, contactId: contactId || null, bankAccountId: accountId || null },
-          applyOpen ? today : null,
-        ),
+    return act(async () => {
+      await updateRecurrence(
+        r.id,
+        { description: description.trim(), amount: value, categoryId: categoryId || null, contactId: contactId || null, bankAccountId: accountId || null },
+        applyOpen ? today : null,
+      );
+      if (Math.abs(value - r.amount) >= 0.005)
+        await logAmountChange({
+          movementId: null,
+          recurrenceId: r.id,
+          contactId: contactId || null,
+          description: description.trim(),
+          oldAmount: r.amount,
+          newAmount: value,
+          scope: "this_and_next",
+          effectiveDate: today,
+          affectedCount: applyOpen ? openCount : 0,
+        });
+    },
       applyOpen && openCount ? `Série atualizada · ${openCount} lançamentos em aberto ajustados` : "Série atualizada",
     );
   };

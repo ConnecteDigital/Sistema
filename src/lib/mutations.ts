@@ -137,6 +137,65 @@ export async function updateRecurrence(id: string, patch: RecurrencePatch, apply
   }
 }
 
+/** Leva um novo valor para os próximos lançamentos (e para a série, que gera os meses seguintes). */
+export async function applyAmountToNext(ids: string[], amount: number, recurrenceId: string | null) {
+  const sb = db();
+  if (ids.length) await check(sb.from("movements").update({ amount }).in("id", ids));
+  if (recurrenceId) await check(sb.from("recurrences").update({ amount }).eq("id", recurrenceId));
+}
+
+export interface AmountChange {
+  id: string;
+  movementId: string | null;
+  recurrenceId: string | null;
+  contactId: string | null;
+  description: string;
+  oldAmount: number;
+  newAmount: number;
+  scope: "only_this" | "this_and_next";
+  effectiveDate: string;
+  affectedCount: number;
+  createdAt: string;
+}
+
+/** Registra no histórico. Não impede o salvamento se a tabela ainda não existir. */
+export async function logAmountChange(c: Omit<AmountChange, "id" | "createdAt">) {
+  if (!supabaseConfigured) return;
+  const { error } = await createClient().from("amount_changes").insert({
+    movement_id: c.movementId,
+    recurrence_id: c.recurrenceId,
+    contact_id: c.contactId,
+    description: c.description,
+    old_amount: c.oldAmount,
+    new_amount: c.newAmount,
+    scope: c.scope,
+    effective_date: c.effectiveDate,
+    affected_count: c.affectedCount,
+  });
+  if (error) console.warn("Histórico de valores não gravado:", error.message);
+}
+
+export async function listAmountChanges(movementId: string, recurrenceId: string | null): Promise<AmountChange[]> {
+  if (!supabaseConfigured) return [];
+  let q = createClient().from("amount_changes").select("*").order("created_at", { ascending: false }).limit(30);
+  q = recurrenceId ? q.or(`movement_id.eq.${movementId},recurrence_id.eq.${recurrenceId}`) : q.eq("movement_id", movementId);
+  const { data, error } = await q;
+  if (error) return [];
+  return (data as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id),
+    movementId: (r.movement_id as string | null) ?? null,
+    recurrenceId: (r.recurrence_id as string | null) ?? null,
+    contactId: (r.contact_id as string | null) ?? null,
+    description: String(r.description ?? ""),
+    oldAmount: Number(r.old_amount),
+    newAmount: Number(r.new_amount),
+    scope: r.scope as AmountChange["scope"],
+    effectiveDate: String(r.effective_date),
+    affectedCount: Number(r.affected_count),
+    createdAt: String(r.created_at),
+  }));
+}
+
 /** Encerra a série; opcionalmente apaga os lançamentos futuros ainda em aberto. */
 export async function cancelRecurrence(id: string, deleteFrom: string | null) {
   const sb = db();

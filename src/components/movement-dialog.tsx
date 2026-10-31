@@ -5,7 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
 import { addDays, addMonths } from "@/lib/dates";
-import { applyAmountToNext, deleteMovements, insertMovements, insertRecurrence, insertTransfer, listAmountChanges, logAmountChange, updateMovement, type AmountChange } from "@/lib/mutations";
+import { applyAmountToNext, deleteMovements, deleteMovementsAndStop, insertMovements, insertRecurrence, insertTransfer, listAmountChanges, logAmountChange, updateMovement, type AmountChange } from "@/lib/mutations";
 import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -282,14 +282,21 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     }
   }
 
-  async function remove() {
+  async function remove(withNext = false) {
     if (!editing) return;
     if (!confirmDelete) return setConfirmDelete(true);
     setSaving(true);
     try {
-      await deleteMovements([editing.id]);
-      applyLocal((d) => ({ ...d, movements: d.movements.filter((m) => m.id !== editing.id) }));
-      toast({ tone: "success", title: "Lançamento excluído" });
+      const ids = new Set([editing.id, ...(withNext ? followers.map((m) => m.id) : [])]);
+      if (withNext) await deleteMovementsAndStop([...ids], editing.recurrenceId ? [editing.recurrenceId] : []);
+      else await deleteMovements([editing.id]);
+      applyLocal((d) => ({
+        ...d,
+        movements: d.movements.filter((m) => !ids.has(m.id)),
+        recurrences: withNext && editing.recurrenceId ? d.recurrences.map((r) => (r.id === editing.recurrenceId ? { ...r, active: false } : r)) : d.recurrences,
+      }));
+      if (withNext) await reload();
+      toast({ tone: "success", title: withNext ? `${ids.size} lançamentos excluídos (este e os próximos)` : "Lançamento excluído" });
       onDone();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Não foi possível excluir.");
@@ -616,15 +623,43 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
         )}
       </div>
 
-      <div className="flex items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
-        {editing && (
+      <div className="flex flex-wrap items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
+        {editing && confirmDelete && followers.length > 0 && (
+          <div className="w-full space-y-2 rounded-xl border border-destructive/30 bg-card p-3 animate-fade-in">
+            <div className="text-[12.5px]">
+              Excluir <b>{editing.description || "este lançamento"}</b>. Isso vale para:
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-3">
+              <button type="button" disabled={saving} onClick={() => void remove(false)} className="rounded-lg border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60">
+                <div className="text-[12.5px] font-medium">Só este mês</div>
+                <div className="text-[11px] text-muted-foreground">Os próximos continuam</div>
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void remove(true)}
+                className="rounded-lg border border-destructive/40 bg-card px-2.5 py-1.5 text-left text-destructive-foreground transition-colors hover:bg-destructive/10"
+              >
+                <div className="text-[12.5px] font-medium">Este e os próximos</div>
+                <div className="text-[11px] opacity-80">
+                  Mais {followers.length} em aberto{editing.recurrenceId ? "; a série é encerrada" : ""}
+                </div>
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60">
+                <div className="text-[12.5px] font-medium">Não excluir</div>
+                <div className="text-[11px] text-muted-foreground">Voltar sem mudar nada</div>
+              </button>
+            </div>
+          </div>
+        )}
+        {editing && !(confirmDelete && followers.length > 0) && (
           <Button
             type="button"
             variant={confirmDelete ? "danger" : "ghost"}
             size="md"
             disabled={saving}
             onClick={() => void remove()}
-            onBlur={() => setConfirmDelete(false)}
+            onBlur={() => followers.length === 0 && setConfirmDelete(false)}
             className={cn(!confirmDelete && "text-destructive-foreground")}
           >
             <Trash2 /> {confirmDelete ? "Confirmar exclusão" : "Excluir"}

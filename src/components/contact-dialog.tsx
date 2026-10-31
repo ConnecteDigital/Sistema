@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge, Dialog, DialogContent, DialogDescription, DialogTitle, UnderlineTabs } from "@/components/ui/primitives";
 import { lookupCEP, lookupCNPJ, maskCEP, maskPhone, maskTaxId, onlyDigits, taxIdStatus } from "@/lib/br";
 import { formatBRL, formatDate } from "@/lib/format";
-import { insertContact, updateContact } from "@/lib/mutations";
+import { addMonths, startOfMonth } from "@/lib/dates";
+import { deleteMovementsAndStop, insertContact, updateContact } from "@/lib/mutations";
 import type { Address, Contact } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFinance } from "./finance-provider";
@@ -27,7 +28,7 @@ function Field({ label, hint, children, className }: { label: string; hint?: Rea
 }
 
 export function ContactDialog({ contact, onClose, onCreated }: { contact: Contact | null; onClose: () => void; onCreated?: (id: string, name: string) => void }) {
-  const { data, reload } = useFinance();
+  const { data, reload, today } = useFinance();
   const { open: openMovement } = useMovementDialog();
   const toast = useToast();
   const [tab, setTab] = React.useState<"dados" | "endereco" | "obs" | "historico">("dados");
@@ -42,6 +43,8 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
   const [busy, setBusy] = React.useState(false);
   const [looking, setLooking] = React.useState<"cnpj" | "cep" | null>(null);
   const [message, setMessage] = React.useState<{ tone: "error" | "ok"; text: string } | null>(null);
+  // Ao arquivar quem saiu: o que fazer com as mensalidades/lançamentos em aberto.
+  const [askArchive, setAskArchive] = React.useState(false);
 
   const status = taxIdStatus(taxId);
   const setAddr = (k: keyof Address, v: string) => setAddress((a) => ({ ...a, [k]: v }));
@@ -81,7 +84,7 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
     toast({ tone: "error", title: text });
   };
 
-  async function save(deleted?: boolean) {
+  async function save(deleted?: boolean, removeFrom?: string) {
     if (!name.trim()) {
       setTab("dados");
       return fail("Informe o nome do cliente/fornecedor.");
@@ -106,9 +109,16 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
         ...(deleted !== undefined ? { deleted } : {}),
       };
       if (contact) await updateContact(contact.id, input);
+      let removed = 0;
+      if (contact && deleted && removeFrom) {
+        const ids = upcoming.filter((m) => m.date >= removeFrom).map((m) => m.id);
+        const series = (data?.recurrences ?? []).filter((r) => r.active && r.contactId === contact.id).map((r) => r.id);
+        await deleteMovementsAndStop(ids, series);
+        removed = ids.length;
+      }
       else onCreated?.(await insertContact(input), input.name);
       await reload();
-      toast({ tone: "success", title: deleted ? "Cadastro arquivado" : deleted === false ? "Cadastro restaurado" : contact ? "Cadastro atualizado" : "Cadastro criado" });
+      toast({ tone: "success", title: deleted ? (removed ? `Cadastro arquivado · ${removed} lançamento${removed === 1 ? "" : "s"} removido${removed === 1 ? "" : "s"}` : "Cadastro arquivado") : deleted === false ? "Cadastro restaurado" : contact ? "Cadastro atualizado" : "Cadastro criado" });
       onClose();
     } catch (e) {
       fail(`Não foi possível salvar: ${e instanceof Error ? e.message : "erro desconhecido"}`);
@@ -121,6 +131,12 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
     () => (contact && data ? data.movements.filter((m) => m.contactId === contact.id).sort((a, b) => b.date.localeCompare(a.date)) : []),
     [contact, data],
   );
+  // Em aberto deste mês em diante (atrasados de meses anteriores ficam, são dívida).
+  const thisMonth = startOfMonth(today);
+  const nextMonth = addMonths(thisMonth, 1);
+  const upcoming = history.filter((m) => !m.paid && m.date >= thisMonth);
+  const fromNext = upcoming.filter((m) => m.date >= nextMonth);
+  const sum = (ms: typeof history) => ms.reduce((s, m) => s + m.amount, 0);
   const received = history.filter((m) => m.paid && m.type === "inflow").reduce((s, m) => s + m.amount, 0);
   const paid = history.filter((m) => m.paid && m.type === "outflow").reduce((s, m) => s + m.amount, 0);
   const open = history.filter((m) => !m.paid).reduce((s, m) => s + (m.type === "inflow" ? m.amount : -m.amount), 0);
@@ -287,13 +303,55 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
+        {askArchive && contact && (
+          <div className="w-full space-y-2 rounded-xl border border-destructive/30 bg-card p-3 animate-fade-in">
+            <div className="text-[12.5px]">
+              <b>{contact.name}</b> tem {upcoming.length} lançamento{upcoming.length === 1 ? "" : "s"} em aberto deste mês em diante ({formatBRL(sum(upcoming))}). O que fazer com eles?
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-3">
+              <button type="button" disabled={busy} onClick={() => void save(true)} className="rounded-lg border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60">
+                <div className="text-[12.5px] font-medium">Manter tudo</div>
+                <div className="text-[11px] text-muted-foreground">Só arquiva o cadastro</div>
+              </button>
+              <button
+                type="button"
+                disabled={busy || fromNext.length === 0}
+                onClick={() => void save(true, nextMonth)}
+                className="rounded-lg border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-destructive/10 disabled:opacity-50"
+              >
+                <div className="text-[12.5px] font-medium">Remover os próximos meses</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Mantém este mês · remove {fromNext.length} ({formatBRL(sum(fromNext))})
+                </div>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void save(true, thisMonth)}
+                className="rounded-lg border border-destructive/40 bg-card px-2.5 py-1.5 text-left text-destructive-foreground transition-colors hover:bg-destructive/10"
+              >
+                <div className="text-[12.5px] font-medium">Remover este mês e os próximos</div>
+                <div className="text-[11px] opacity-80">
+                  Remove {upcoming.length} ({formatBRL(sum(upcoming))})
+                </div>
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Lançamentos já recebidos e atrasados de meses anteriores não são apagados. Ao remover, as recorrências do cliente são encerradas.</p>
+          </div>
+        )}
           {contact &&
             (contact.deleted ? (
               <Button variant="ghost" size="md" disabled={busy} onClick={() => void save(false)}>
                 <Undo2 /> Restaurar
               </Button>
             ) : (
-              <Button variant="ghost" size="md" disabled={busy} className="text-destructive-foreground" onClick={() => void save(true)}>
+              <Button
+                variant="ghost"
+                size="md"
+                disabled={busy}
+                className="text-destructive-foreground"
+                onClick={() => (upcoming.length && !askArchive ? setAskArchive(true) : askArchive ? setAskArchive(false) : void save(true))}
+              >
                 <Trash2 /> Arquivar
               </Button>
             ))}

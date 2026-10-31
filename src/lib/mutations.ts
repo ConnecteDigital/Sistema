@@ -54,6 +54,13 @@ export async function deleteMovements(ids: string[]) {
   await check(db().from("movements").delete().in("id", ids));
 }
 
+/** Apaga lançamentos e encerra as séries deles, para o sistema não gerar os meses seguintes de novo. */
+export async function deleteMovementsAndStop(ids: string[], recurrenceIds: string[]) {
+  const sb = db();
+  if (recurrenceIds.length) await check(sb.from("recurrences").update({ active: false }).in("id", recurrenceIds));
+  for (let i = 0; i < ids.length; i += 200) await check(sb.from("movements").delete().in("id", ids.slice(i, i + 200)));
+}
+
 export async function setMovementsPaid(ids: string[], paid: boolean) {
   await check(db().from("movements").update({ paid }).in("id", ids));
 }

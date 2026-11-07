@@ -284,7 +284,17 @@ export async function insertContact(c: ContactInput, id: string = crypto.randomU
 
 /** Exclui de vez cadastros (só usar para os que não têm lançamentos nem recorrências). */
 export async function deleteContacts(ids: string[]) {
-  for (let i = 0; i < ids.length; i += 200) await check(db().from("contacts").delete().in("id", ids.slice(i, i + 200)));
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    // Quando a regra de acesso do banco não permite excluir, ele não dá erro: só não apaga.
+    // Por isso conferimos quantos foram apagados de verdade.
+    const gone = (await check(db().from("contacts").delete().in("id", chunk).select("id"))) as { id: string }[] | null;
+    const missing = chunk.length - (gone?.length ?? 0);
+    if (missing > 0)
+      throw new Error(
+        `O banco não apagou ${missing === 1 ? "o cadastro" : `${missing} cadastros`} (falta permissão de exclusão). Rode no Supabase o arquivo supabase/migrations/0003_delete_policies.sql.`,
+      );
+  }
 }
 
 export async function updateContact(id: string, c: Partial<ContactInput>) {

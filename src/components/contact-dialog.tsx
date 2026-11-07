@@ -174,6 +174,7 @@ export function ContactDialog({
       await deleteContacts([contact.id]);
       applyLocal((d) => ({ ...d, contacts: d.contacts.filter((c) => c.id !== contact.id) }));
       toast({ tone: "success", title: `Cadastro “${contact.name}” excluído` });
+      void reload();
       onClose();
     } catch (e) {
       fail(`Não foi possível excluir: ${e instanceof Error ? e.message : "erro desconhecido"}`);

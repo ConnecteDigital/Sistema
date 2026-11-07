@@ -42,7 +42,7 @@ function SortHead({ k, sort, onSort, children, right }: { k: SortKey; sort: { ke
 }
 
 export default function ContatosPage() {
-  const { data, error, today, applyLocal } = useFinance();
+  const { data, error, today, applyLocal, reload } = useFinance();
   const toast = useToast();
   const [confirmPurge, setConfirmPurge] = React.useState(false);
   const [purging, setPurging] = React.useState(false);
@@ -105,6 +105,7 @@ export default function ContatosPage() {
     } catch (e) {
       toast({ tone: "error", title: e instanceof Error ? e.message : "Não foi possível excluir." });
     } finally {
+      void reload();
       setPurging(false);
       setConfirmPurge(false);
     }

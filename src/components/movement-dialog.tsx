@@ -126,6 +126,11 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   // Mudou o valor de algo que se repete: vale só para este mês ou também para os próximos?
   const [scope, setScope] = React.useState<"only_this" | "this_and_next">("only_this");
   const [history, setHistory] = React.useState<AmountChange[] | null>(null);
+  // Porcentagem descontada da entrada (ex.: comissão de quem trouxe o cliente): vira uma saída ligada a ela.
+  const [pctOn, setPctOn] = React.useState(false);
+  const [pct, setPct] = React.useState("");
+  const [pctContactId, setPctContactId] = React.useState("");
+  const [pctCategoryId, setPctCategoryId] = React.useState("");
 
   const isIn = kind === "inflow";
   const groupType = new Map(data?.groups.map((g) => [g.id, g]) ?? []);
@@ -133,6 +138,18 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     .filter((c) => kind !== "transfer" && groupType.get(c.groupId)?.type === kind)
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const accounts = (data?.accounts ?? []).filter((a) => a.active);
+
+  const outflowCategories = (data?.categories ?? [])
+    .filter((c) => groupType.get(c.groupId)?.type === "outflow")
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const pctCategory =
+    pctCategoryId ||
+    (outflowCategories.find((c) => /comiss|porcent|repasse/i.test(c.name)) ?? outflowCategories.find((c) => /servi[cç]os contratados/i.test(c.name)) ?? outflowCategories[0])?.id ||
+    "";
+  const existingPct = editing ? data?.movements.find((m) => m.origin === `pct:${editing.id}`) : undefined;
+  const pctNum = Number(pct.replace(",", ".")) || 0;
+  const pctAmount = Math.round(parseMoney(amount) * pctNum) / 100;
+  const pctActive = pctOn && kind === "inflow" && !existingPct;
 
   const settling = !!editing && !editing.paid && paid && kind !== "transfer";
   const receivedValue = received ? parseMoney(received) : parseMoney(amount);
@@ -178,6 +195,8 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     } else if (!description.trim() || !categoryId || !accountId) {
       return setMessage("Preencha descrição, categoria e conta.");
     }
+    if (pctActive && (pctNum <= 0 || pctNum >= 100)) return setMessage("Informe a porcentagem (entre 0 e 100).");
+    if (pctActive && !pctCategory) return setMessage("Escolha a categoria da porcentagem.");
     setSaving(true);
     try {
       if (kind === "transfer") {
@@ -197,6 +216,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           documentNumber: documentNumber.trim() || null,
           notes: notes.trim() || null,
         };
+        let inflowId = editing?.id ?? null;
         const settledValue = settling && received ? parseMoney(received) : value;
         const diff = Math.round((value - settledValue) * 100) / 100;
         if (editing && settling && diff !== 0) {
@@ -230,7 +250,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           applyLocal((d) => ({ ...d, movements: d.movements.map((m) => (m.id === editing.id ? { ...m, ...base } : m)) }));
           await updateMovement(editing.id, base);
         } else if (period === "none") {
-          await insertMovements([{ ...base, recurrenceId: null, installment: 0, totalInstallments: 0 }]);
+          inflowId = (await insertMovements([{ ...base, recurrenceId: null, installment: 0, totalInstallments: 0 }]))[0];
         } else {
           const quantity = repeatCount ? Math.max(2, Number(repeatCount)) : null;
           const dates = occurrences(date, period, quantity ?? HORIZON[period]);
@@ -239,12 +259,35 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
             nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId,
             contactId: contactId || null, description: base.description,
           });
-          await insertMovements(
+          inflowId = (await insertMovements(
             dates.map((d, i) => ({
               ...base, date: d, dueDate: d, competenceDate: d, paid: i === 0 && paid, recurrenceId,
               installment: quantity ? i + 1 : 0, totalInstallments: quantity ?? 0,
             })),
-          );
+          ))[0];
+        }
+        if (pctActive && inflowId && pctAmount > 0) {
+          const client = data?.contacts.find((c) => c.id === contactId)?.name;
+          await insertMovements([
+            {
+              type: "outflow",
+              date,
+              competenceDate: competence ?? date,
+              dueDate: date,
+              amount: pctAmount,
+              description: `Porcentagem ${pct}% · ${base.description}${client ? ` (${client})` : ""}`,
+              bankAccountId: accountId,
+              categoryId: pctCategory,
+              contactId: pctContactId || null,
+              recurrenceId: null,
+              paid,
+              installment: 0,
+              totalInstallments: 0,
+              documentNumber: null,
+              notes: `${pct}% de ${formatBRL(value)}, descontado da entrada`,
+              origin: `pct:${inflowId}`,
+            },
+          ]);
         }
         if (editing && amountChanged) {
           const next = scope === "this_and_next" ? followers : [];
@@ -267,7 +310,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
         }
       }
       await reload();
-      toast({ tone: "success", title: amountChanged && scope === "this_and_next" && followers.length ? `Valor alterado neste e nos próximos ${followers.length} lançamento${followers.length === 1 ? "" : "s"}` : settling && settleDiff > 0 ? (shortfall === "partial" ? `Baixa parcial: ${formatBRL(settleDiff)} continuam em aberto` : `Baixado com desconto de ${formatBRL(settleDiff)}`) : editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
+      toast({ tone: "success", title: pctActive && pctAmount > 0 ? `Entrada salva · porcentagem de ${formatBRL(pctAmount)} lançada como saída` : amountChanged && scope === "this_and_next" && followers.length ? `Valor alterado neste e nos próximos ${followers.length} lançamento${followers.length === 1 ? "" : "s"}` : settling && settleDiff > 0 ? (shortfall === "partial" ? `Baixa parcial: ${formatBRL(settleDiff)} continuam em aberto` : `Baixado com desconto de ${formatBRL(settleDiff)}`) : editing ? "Lançamento atualizado" : kind === "transfer" ? "Transferência registrada" : period !== "none" ? "Série criada" : "Lançamento adicionado" });
       if (keepOpen) {
         setAmount("");
         setDescription("");
@@ -288,15 +331,17 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     setSaving(true);
     try {
       const ids = new Set([editing.id, ...(withNext ? followers.map((m) => m.id) : [])]);
+      // A porcentagem descontada some junto com a entrada.
+      for (const m of data?.movements ?? []) if (m.origin?.startsWith("pct:") && ids.has(m.origin.slice(4))) ids.add(m.id);
       if (withNext) await deleteMovementsAndStop([...ids], editing.recurrenceId ? [editing.recurrenceId] : []);
-      else await deleteMovements([editing.id]);
+      else await deleteMovements([...ids]);
       applyLocal((d) => ({
         ...d,
         movements: d.movements.filter((m) => !ids.has(m.id)),
         recurrences: withNext && editing.recurrenceId ? d.recurrences.map((r) => (r.id === editing.recurrenceId ? { ...r, active: false } : r)) : d.recurrences,
       }));
       if (withNext) await reload();
-      toast({ tone: "success", title: withNext ? `${ids.size} lançamentos excluídos (este e os próximos)` : "Lançamento excluído" });
+      toast({ tone: "success", title: withNext ? `${ids.size} lançamentos excluídos (este e os próximos)` : ids.size > 1 ? "Lançamento e porcentagem excluídos" : "Lançamento excluído" });
       onDone();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Não foi possível excluir.");
@@ -399,6 +444,61 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
               )}
             </div>
           )}
+          {kind === "inflow" &&
+            (existingPct ? (
+              <div className="rounded-xl border border-dashed bg-muted/40 px-3 py-2 text-[12.5px]">
+                Porcentagem já descontada: <b className="tabular">{formatBRL(existingPct.amount)}</b>{" "}
+                <span className="text-muted-foreground">({existingPct.description})</span>
+              </div>
+            ) : (
+              <div className={cn("rounded-xl border", pctOn ? "border-dashed bg-muted/40 p-3" : "px-3 py-2")}>
+                <label className="flex items-center gap-2 text-[13px]">
+                  <input type="checkbox" checked={pctOn} onChange={(e) => setPctOn(e.target.checked)} className="size-3.5 accent-[var(--primary)]" />
+                  Descontar porcentagem <span className="text-muted-foreground">(comissão, parceiro…)</span>
+                </label>
+                {pctOn && (
+                  <div className="mt-2.5 space-y-2.5 animate-fade-in">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <Field label="Porcentagem">
+                        <div className="relative w-24">
+                          <input
+                            inputMode="decimal"
+                            autoFocus
+                            value={pct}
+                            onChange={(e) => setPct(e.target.value.replace(/[^\d,.]/g, "").slice(0, 5))}
+                            placeholder="10"
+                            className={cn(inputClass, "pr-6 font-medium tabular")}
+                          />
+                          <span className="pointer-events-none absolute right-2.5 top-1.5 text-[12px] text-muted-foreground">%</span>
+                        </div>
+                      </Field>
+                      <div className="pb-1.5 text-[12.5px]">
+                        = <b className="tabular text-destructive-foreground">{formatBRL(pctAmount)}</b>
+                        <span className="text-muted-foreground"> · fica para a empresa </span>
+                        <b className="tabular">{formatBRL(Math.max(0, parseMoney(amount) - pctAmount))}</b>
+                      </div>
+                    </div>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <Field label="Para quem">
+                        <ContactPicker value={pctContactId} onChange={setPctContactId} kind="supplier" />
+                      </Field>
+                      <Field label="Categoria da saída">
+                        <select value={pctCategory} onChange={(e) => setPctCategoryId(e.target.value)} className={inputClass}>
+                          {outflowCategories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                    <p className="text-[11.5px] text-muted-foreground">
+                      A entrada fica com o valor cheio e a porcentagem vira uma saída na mesma data e conta{period !== "none" && !editing ? " (só neste primeiro recebimento)" : ""}.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
           <Field label="Data">
             <div className="flex items-center gap-3">
               <div className="relative w-[210px]">

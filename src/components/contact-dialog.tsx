@@ -7,7 +7,7 @@ import { Badge, Dialog, DialogContent, DialogDescription, DialogTitle, Underline
 import { lookupCEP, lookupCNPJ, maskCEP, maskPhone, maskTaxId, onlyDigits, taxIdStatus } from "@/lib/br";
 import { formatBRL, formatDate } from "@/lib/format";
 import { addMonths, startOfMonth } from "@/lib/dates";
-import { deleteMovementsAndStop, insertContact, updateContact } from "@/lib/mutations";
+import { deleteContacts, deleteMovementsAndStop, insertContact, updateContact } from "@/lib/mutations";
 import type { Address, Contact } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFinance } from "./finance-provider";
@@ -28,7 +28,7 @@ function Field({ label, hint, children, className }: { label: string; hint?: Rea
 }
 
 export function ContactDialog({ contact, onClose, onCreated }: { contact: Contact | null; onClose: () => void; onCreated?: (id: string, name: string) => void }) {
-  const { data, reload, today } = useFinance();
+  const { data, reload, today, applyLocal } = useFinance();
   const { open: openMovement } = useMovementDialog();
   const toast = useToast();
   const [tab, setTab] = React.useState<"dados" | "endereco" | "obs" | "historico">("dados");
@@ -45,6 +45,7 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
   const [message, setMessage] = React.useState<{ tone: "error" | "ok"; text: string } | null>(null);
   // Ao arquivar quem saiu: o que fazer com as mensalidades/lançamentos em aberto.
   const [askArchive, setAskArchive] = React.useState(false);
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
 
   const status = taxIdStatus(taxId);
   const setAddr = (k: keyof Address, v: string) => setAddress((a) => ({ ...a, [k]: v }));
@@ -131,6 +132,23 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
     () => (contact && data ? data.movements.filter((m) => m.contactId === contact.id).sort((a, b) => b.date.localeCompare(a.date)) : []),
     [contact, data],
   );
+  // Sem nenhum lançamento nem recorrência (ex.: cadastro de teste ou duplicado): pode ser excluído de vez.
+  const unused = !!contact && history.length === 0 && !(data?.recurrences ?? []).some((r) => r.contactId === contact.id);
+  async function removeForGood() {
+    if (!contact) return;
+    if (!confirmRemove) return setConfirmRemove(true);
+    setBusy(true);
+    try {
+      await deleteContacts([contact.id]);
+      applyLocal((d) => ({ ...d, contacts: d.contacts.filter((c) => c.id !== contact.id) }));
+      toast({ tone: "success", title: `Cadastro “${contact.name}” excluído` });
+      onClose();
+    } catch (e) {
+      fail(`Não foi possível excluir: ${e instanceof Error ? e.message : "erro desconhecido"}`);
+    } finally {
+      setBusy(false);
+    }
+  }
   // Em aberto deste mês em diante (atrasados de meses anteriores ficam, são dívida).
   const thisMonth = startOfMonth(today);
   const nextMonth = addMonths(thisMonth, 1);
@@ -355,6 +373,19 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
                 <Trash2 /> Arquivar
               </Button>
             ))}
+          {unused && (
+            <Button
+              variant={confirmRemove ? "danger" : "ghost"}
+              size="md"
+              disabled={busy}
+              onClick={() => void removeForGood()}
+              onBlur={() => setConfirmRemove(false)}
+              className={cn(!confirmRemove && "text-destructive-foreground")}
+              title="Este cadastro não tem lançamentos: pode ser apagado de vez"
+            >
+              <Trash2 /> {confirmRemove ? "Confirmar exclusão" : "Excluir de vez"}
+            </Button>
+          )}
           <span className={cn("flex-1 text-[12px]", message?.tone === "error" ? "text-destructive-foreground" : "text-success-foreground")}>{message?.text}</span>
           <Button size="md" onClick={onClose}>
             Cancelar

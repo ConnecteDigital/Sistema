@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, CircleAlert, Download, Mail, Phone, Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, CircleAlert, Download, Mail, Phone, Plus, Search, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { ContactAvatar } from "@/components/avatars";
 import { ContactDialog } from "@/components/contact-dialog";
@@ -11,6 +11,8 @@ import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Segmented } from "@/components/ui/primitives";
+import { useToast } from "@/components/toast";
+import { deleteContacts } from "@/lib/mutations";
 import { maskTaxId, taxIdStatus } from "@/lib/br";
 import { addMonths, endOfMonth, inRange, startOfMonth } from "@/lib/dates";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -39,7 +41,10 @@ function SortHead({ k, sort, onSort, children, right }: { k: SortKey; sort: { ke
 }
 
 export default function ContatosPage() {
-  const { data, error, today } = useFinance();
+  const { data, error, today, applyLocal } = useFinance();
+  const toast = useToast();
+  const [confirmPurge, setConfirmPurge] = React.useState(false);
+  const [purging, setPurging] = React.useState(false);
   const [range, setRange] = React.useState<DateRange | null>(null);
   const [query, setQuery] = React.useState("");
   const [kind, setKind] = React.useState<Kind>("all");
@@ -80,6 +85,29 @@ export default function ContatosPage() {
   }, [data, period]);
 
   const live = rows.filter((r) => !r.contact.deleted);
+  // Arquivados sem nenhum lançamento nem recorrência (testes, duplicados): podem ser excluídos de vez.
+  const unusedArchived = React.useMemo(() => {
+    if (!data) return [];
+    const used = new Set<string>();
+    for (const m of data.movements) if (m.contactId) used.add(m.contactId);
+    for (const r of data.recurrences) if (r.contactId) used.add(r.contactId);
+    return data.contacts.filter((c) => c.deleted && !used.has(c.id));
+  }, [data]);
+  async function purge() {
+    if (!confirmPurge) return setConfirmPurge(true);
+    setPurging(true);
+    try {
+      const ids = new Set(unusedArchived.map((c) => c.id));
+      await deleteContacts([...ids]);
+      applyLocal((d) => ({ ...d, contacts: d.contacts.filter((c) => !ids.has(c.id)) }));
+      toast({ tone: "success", title: `${ids.size} cadastro${ids.size === 1 ? "" : "s"} excluído${ids.size === 1 ? "" : "s"} de vez` });
+    } catch (e) {
+      toast({ tone: "error", title: e instanceof Error ? e.message : "Não foi possível excluir." });
+    } finally {
+      setPurging(false);
+      setConfirmPurge(false);
+    }
+  }
   const counts = {
     customers: live.filter((r) => r.contact.isCustomer).length,
     suppliers: live.filter((r) => r.contact.isSupplier).length,
@@ -208,6 +236,19 @@ export default function ContatosPage() {
             ]}
           />
           <div className="flex-1" />
+          {kind === "archived" && unusedArchived.length > 0 && (
+            <Button
+              variant={confirmPurge ? "danger" : "outline"}
+              size="md"
+              disabled={purging}
+              onClick={() => void purge()}
+              onBlur={() => setConfirmPurge(false)}
+              className={cn(!confirmPurge && "text-destructive-foreground")}
+              title="Apaga de vez os arquivados que não têm nenhum lançamento"
+            >
+              <Trash2 /> {confirmPurge ? `Confirmar: excluir ${unusedArchived.length}` : `Excluir ${unusedArchived.length} sem lançamentos`}
+            </Button>
+          )}
           <Button size="icon" onClick={exportCSV} title="Exportar CSV" aria-label="Exportar CSV">
             <Download />
           </Button>

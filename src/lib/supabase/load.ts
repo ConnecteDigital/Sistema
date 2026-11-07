@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FinanceData } from "../types";
 
-/** Lê todas as linhas de uma tabela (o PostgREST pagina em 1000). */
+/**
+ * Lê todas as linhas de uma tabela (o PostgREST pagina em 1000). A ordem fixa por id
+ * é obrigatória: sem ela o banco pode repetir linhas numa página e pular outras.
+ */
 async function all<T>(sb: SupabaseClient, table: string): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from(table).select("*").range(from, from + 999);
+    const { data, error } = await sb.from(table).select("*").order("id").range(from, from + 999);
     if (error) throw new Error(`${table}: ${error.message}`);
     out.push(...(data as T[]));
     if (!data || data.length < 1000) return out;

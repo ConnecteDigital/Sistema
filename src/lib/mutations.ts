@@ -277,6 +277,11 @@ export async function insertContact(c: ContactInput): Promise<string> {
   return (row as { id: string }).id;
 }
 
+/** Exclui de vez cadastros (só usar para os que não têm lançamentos nem recorrências). */
+export async function deleteContacts(ids: string[]) {
+  for (let i = 0; i < ids.length; i += 200) await check(db().from("contacts").delete().in("id", ids.slice(i, i + 200)));
+}
+
 export async function updateContact(id: string, c: Partial<ContactInput>) {
   await check(db().from("contacts").update(contactRow(c)).eq("id", id));
 }

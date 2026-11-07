@@ -137,17 +137,19 @@ export function ContactDialog({
         notes: notes.trim() || null,
         ...(deleted !== undefined ? { deleted } : {}),
       };
-      if (contact) await updateContact(contact.id, input);
+      // Cadastro existente: só atualiza. Criar um novo é exclusivo de "Novo cadastro" (contact === null).
+      if (contact) {
+        await updateContact(contact.id, input);
+      } else {
+        newId.current ??= crypto.randomUUID();
+        onCreated?.(await insertContact(input, newId.current), input.name);
+      }
       let removed = 0;
       if (contact && deleted && removeFrom) {
         const ids = upcoming.filter((m) => m.date >= removeFrom).map((m) => m.id);
         const series = (data?.recurrences ?? []).filter((r) => r.active && r.contactId === contact.id).map((r) => r.id);
         await deleteMovementsAndStop(ids, series);
         removed = ids.length;
-      }
-      else {
-        newId.current ??= crypto.randomUUID();
-        onCreated?.(await insertContact(input, newId.current), input.name);
       }
       await reload();
       toast({ tone: "success", title: deleted ? (removed ? `Cadastro arquivado · ${removed} lançamento${removed === 1 ? "" : "s"} removido${removed === 1 ? "" : "s"}` : "Cadastro arquivado") : deleted === false ? "Cadastro restaurado" : contact ? "Cadastro atualizado" : "Cadastro criado" });

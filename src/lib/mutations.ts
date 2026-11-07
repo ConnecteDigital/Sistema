@@ -272,9 +272,14 @@ const contactRow = (c: Partial<ContactInput>) => {
   return row;
 };
 
-export async function insertContact(c: ContactInput): Promise<string> {
-  const row = await check(db().from("contacts").insert(contactRow(c)).select("id").single());
-  return (row as { id: string }).id;
+/**
+ * Cria o cadastro com um id gerado aqui. Repetir a chamada com o mesmo id (clique duplo, nova
+ * tentativa depois de um erro de rede) não cria outro: o banco recusa o id repetido e tratamos como salvo.
+ */
+export async function insertContact(c: ContactInput, id: string = crypto.randomUUID()): Promise<string> {
+  const { error } = await db().from("contacts").insert({ ...contactRow(c), id });
+  if (error && !(error.code === "23505" && /contacts_pkey/.test(error.message))) throw new Error(error.message);
+  return id;
 }
 
 /** Exclui de vez cadastros (só usar para os que não têm lançamentos nem recorrências). */

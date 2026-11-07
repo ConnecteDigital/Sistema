@@ -4,6 +4,7 @@ import { CheckCircle2, CircleAlert, Loader2, Search, Trash2, Undo2 } from "lucid
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dialog, DialogContent, DialogDescription, DialogTitle, UnderlineTabs } from "@/components/ui/primitives";
+import { findDuplicateContact } from "@/lib/contacts";
 import { lookupCEP, lookupCNPJ, maskCEP, maskPhone, maskTaxId, onlyDigits, taxIdStatus } from "@/lib/br";
 import { formatBRL, formatDate } from "@/lib/format";
 import { addMonths, startOfMonth } from "@/lib/dates";
@@ -27,7 +28,18 @@ function Field({ label, hint, children, className }: { label: string; hint?: Rea
   );
 }
 
-export function ContactDialog({ contact, onClose, onCreated }: { contact: Contact | null; onClose: () => void; onCreated?: (id: string, name: string) => void }) {
+export function ContactDialog({
+  contact,
+  onClose,
+  onCreated,
+  onOpenExisting,
+}: {
+  contact: Contact | null;
+  onClose: () => void;
+  onCreated?: (id: string, name: string) => void;
+  /** Abre outro cadastro (o que já existe com o mesmo CPF/CNPJ ou nome). */
+  onOpenExisting?: (c: Contact) => void;
+}) {
   const { data, reload, today, applyLocal } = useFinance();
   const { open: openMovement } = useMovementDialog();
   const toast = useToast();
@@ -46,6 +58,11 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
   // Ao arquivar quem saiu: o que fazer com as mensalidades/lançamentos em aberto.
   const [askArchive, setAskArchive] = React.useState(false);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
+  // Contra cadastro repetido: id fixo desta janela (tentar de novo não cria outro), trava de clique duplo
+  // e aviso quando já existe alguém com o mesmo CPF/CNPJ ou nome.
+  const newId = React.useRef<string | null>(null);
+  const savingRef = React.useRef(false);
+  const [duplicate, setDuplicate] = React.useState<ReturnType<typeof findDuplicateContact>>(null);
 
   const status = taxIdStatus(taxId);
   const setAddr = (k: keyof Address, v: string) => setAddress((a) => ({ ...a, [k]: v }));
@@ -85,7 +102,8 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
     toast({ tone: "error", title: text });
   };
 
-  async function save(deleted?: boolean, removeFrom?: string) {
+  async function save(deleted?: boolean, removeFrom?: string, ignoreDuplicate = false) {
+    if (savingRef.current) return;
     if (!name.trim()) {
       setTab("dados");
       return fail("Informe o nome do cliente/fornecedor.");
@@ -95,6 +113,16 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
       return fail("CPF/CNPJ inválido — confira os números ou deixe em branco.");
     }
     if (!isCustomer && !isSupplier) return fail("Marque se é cliente, fornecedor ou os dois.");
+    if (deleted === undefined && !ignoreDuplicate) {
+      const dup = findDuplicateContact(data?.contacts ?? [], { name, taxId: onlyDigits(taxId) || null }, contact?.id);
+      // Na edição só avisa se o CPF/CNPJ for de outro cadastro; nome igual pode ser intencional.
+      if (dup && (!contact || dup.by === "taxId")) {
+        setDuplicate(dup);
+        return;
+      }
+    }
+    setDuplicate(null);
+    savingRef.current = true;
     setBusy(true);
     try {
       const input = {
@@ -117,13 +145,17 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
         await deleteMovementsAndStop(ids, series);
         removed = ids.length;
       }
-      else onCreated?.(await insertContact(input), input.name);
+      else {
+        newId.current ??= crypto.randomUUID();
+        onCreated?.(await insertContact(input, newId.current), input.name);
+      }
       await reload();
       toast({ tone: "success", title: deleted ? (removed ? `Cadastro arquivado · ${removed} lançamento${removed === 1 ? "" : "s"} removido${removed === 1 ? "" : "s"}` : "Cadastro arquivado") : deleted === false ? "Cadastro restaurado" : contact ? "Cadastro atualizado" : "Cadastro criado" });
       onClose();
     } catch (e) {
       fail(`Não foi possível salvar: ${e instanceof Error ? e.message : "erro desconhecido"}`);
     } finally {
+      savingRef.current = false;
       setBusy(false);
     }
   }
@@ -321,6 +353,27 @@ export function ContactDialog({ contact, onClose, onCreated }: { contact: Contac
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sticky bottom-0 z-10 rounded-b-xl border-t bg-card bg-[linear-gradient(var(--muted),var(--muted))] px-5 py-3">
+        {duplicate && (
+          <div className="w-full space-y-2 rounded-xl border border-warning/40 bg-card p-3 animate-fade-in">
+            <div className="text-[12.5px]">
+              Já existe um cadastro {duplicate.by === "taxId" ? "com este CPF/CNPJ" : "com este nome"}: <b>{duplicate.contact.name}</b>
+              {duplicate.contact.taxId ? <span className="text-muted-foreground"> · {maskTaxId(duplicate.contact.taxId)}</span> : null}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {onOpenExisting && (
+                <Button variant="primary" size="md" onClick={() => onOpenExisting(duplicate.contact)}>
+                  Abrir o cadastro existente
+                </Button>
+              )}
+              <Button size="md" disabled={busy} onClick={() => void save(undefined, undefined, true)}>
+                {contact ? "Salvar mesmo assim" : "Cadastrar mesmo assim"}
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => setDuplicate(null)}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
         {askArchive && contact && (
           <div className="w-full space-y-2 rounded-xl border border-destructive/30 bg-card p-3 animate-fade-in">
             <div className="text-[12.5px]">

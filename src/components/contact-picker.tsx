@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Loader2, Plus, Search, X } from "lucide-react";
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/primitives";
+import { normName } from "@/lib/contacts";
 import { insertContact } from "@/lib/mutations";
 import type { Contact } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -34,9 +35,11 @@ export function ContactPicker({ value, onChange, kind, className }: { value: str
     [data, kind],
   );
   const q = norm(query.trim());
-  const list = q ? all.filter((c) => norm(c.name).includes(q) || (c.taxId ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, "") || "\u0000")) : all;
-  const exact = q && all.some((c) => norm(c.name) === q);
-  const canCreate = !!query.trim() && !exact;
+  const found = q ? all.filter((c) => norm(c.name).includes(q) || (c.taxId ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, "") || "\u0000")) : all;
+  // Mesmo nome já cadastrado (inclusive como fornecedor/cliente do outro papel): oferece o existente em vez de criar outro.
+  const existing = q ? (data?.contacts ?? []).find((c) => !c.deleted && normName(c.name) === normName(query)) : undefined;
+  const list = existing && !found.includes(existing) ? [existing, ...found] : found;
+  const canCreate = !!query.trim() && !existing;
   const selected = data?.contacts.find((c) => c.id === value);
   // Itens navegáveis pelo teclado: os contatos e, por último, o "Cadastrar".
   const total = list.length + (canCreate ? 1 : 0);
@@ -51,9 +54,12 @@ export function ContactPicker({ value, onChange, kind, className }: { value: str
     setQuery("");
   }
 
+  const creatingRef = React.useRef(false);
   async function create() {
     const name = query.trim();
-    if (!name) return;
+    // Trava síncrona: Enter repetido ou Enter + clique não podem cadastrar duas vezes.
+    if (!name || creatingRef.current) return;
+    creatingRef.current = true;
     setCreating(true);
     try {
       const input = { name, isCustomer: kind === "customer", isSupplier: kind === "supplier", personType: "natural" as const, taxId: null, email: null, phone: null, address: {}, notes: null };
@@ -66,6 +72,7 @@ export function ContactPicker({ value, onChange, kind, className }: { value: str
     } catch (err) {
       toast({ tone: "error", title: err instanceof Error ? err.message : "Não foi possível cadastrar." });
     } finally {
+      creatingRef.current = false;
       setCreating(false);
     }
   }

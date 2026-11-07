@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Segmented } from "@/components/ui/primitives";
 import { useToast } from "@/components/toast";
+import { normName } from "@/lib/contacts";
 import { deleteContacts } from "@/lib/mutations";
 import { maskTaxId, taxIdStatus } from "@/lib/br";
 import { addMonths, endOfMonth, inRange, startOfMonth } from "@/lib/dates";
@@ -118,7 +119,7 @@ export default function ContatosPage() {
   };
 
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normName(query);
     const digits = q.replace(/\D/g, "");
     const list = rows.filter((r) => {
       const c = r.contact;
@@ -127,7 +128,7 @@ export default function ContatosPage() {
       if (kind === "supplier" && !c.isSupplier) return false;
       if (kind === "nodoc" && !(c.isCustomer && (r.docStatus === "empty" || r.docStatus === "invalid"))) return false;
       if (q) {
-        const hay = [c.name, c.email, c.phone, c.address.city].filter(Boolean).join(" ").toLowerCase();
+        const hay = normName([c.name, c.email, c.phone, c.address.city].filter(Boolean).join(" "));
         if (!hay.includes(q) && !(digits.length >= 3 && (c.taxId ?? "").includes(digits))) return false;
       }
       return true;
@@ -346,7 +347,15 @@ export default function ContatosPage() {
         </div>
       </Card>
 
-      {editing && <ContactDialog contact={editing === "new" ? null : editing} onClose={() => setEditing(null)} onCreated={onCreated} />}
+      {editing && (
+        <ContactDialog
+          key={editing === "new" ? "new" : editing.id}
+          contact={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onCreated={onCreated}
+          onOpenExisting={(c) => setEditing(c)}
+        />
+      )}
     </>
   );
 }

@@ -4,7 +4,7 @@ import { ArrowLeftRight, CalendarDays, Info, Loader2, Paperclip, Plus, Trash2 } 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
-import { addDays, addMonths } from "@/lib/dates";
+import { addDays, addMonths, endOfMonth } from "@/lib/dates";
 import { applyAmountToNext, deleteMovements, deleteMovementsAndStop, insertMovements, insertRecurrence, insertTransfer, listAmountChanges, logAmountChange, updateMovement, type AmountChange } from "@/lib/mutations";
 import type { ISODate, Movement, MovementType, RecurrencePeriod } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
@@ -131,6 +131,9 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const [pct, setPct] = React.useState("");
   const [pctContactId, setPctContactId] = React.useState("");
   const [pctCategoryId, setPctCategoryId] = React.useState("");
+  // Normalmente a porcentagem é paga junto com o salário, no fim do mês: nasce em aberto.
+  const [pctPaid, setPctPaid] = React.useState(false);
+  const [pctDue, setPctDue] = React.useState<string | null>(null);
 
   const isIn = kind === "inflow";
   const groupType = new Map(data?.groups.map((g) => [g.id, g]) ?? []);
@@ -271,16 +274,16 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           await insertMovements([
             {
               type: "outflow",
-              date,
+              date: pctPaid ? date : (pctDue ?? endOfMonth(date)),
               competenceDate: competence ?? date,
-              dueDate: date,
+              dueDate: pctPaid ? date : (pctDue ?? endOfMonth(date)),
               amount: pctAmount,
               description: `Porcentagem ${pct}% · ${base.description}${client ? ` (${client})` : ""}`,
               bankAccountId: accountId,
               categoryId: pctCategory,
               contactId: pctContactId || null,
               recurrenceId: null,
-              paid,
+              paid: pctPaid,
               installment: 0,
               totalInstallments: 0,
               documentNumber: null,
@@ -447,8 +450,13 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           {kind === "inflow" &&
             (existingPct ? (
               <div className="rounded-xl border border-dashed bg-muted/40 px-3 py-2 text-[12.5px]">
-                Porcentagem já descontada: <b className="tabular">{formatBRL(existingPct.amount)}</b>{" "}
-                <span className="text-muted-foreground">({existingPct.description})</span>
+                Porcentagem descontada: <b className="tabular">{formatBRL(existingPct.amount)}</b>{" "}
+                {existingPct.paid ? (
+                  <span className="text-success-foreground">· paga</span>
+                ) : (
+                  <span className="text-warning-foreground">· a pagar em {existingPct.date.split("-").reverse().join("/")}</span>
+                )}
+                <span className="block text-[11.5px] text-muted-foreground">{existingPct.description}</span>
               </div>
             ) : (
               <div className={cn("rounded-xl border", pctOn ? "border-dashed bg-muted/40 p-3" : "px-3 py-2")}>
@@ -492,8 +500,37 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
                         </select>
                       </Field>
                     </div>
+                    <div className="space-y-1.5">
+                      <div className="text-[13px] font-medium">A porcentagem já foi paga?</div>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {(
+                          [
+                            [false, "Ainda não (a pagar)", "Ex.: vai junto com o salário"],
+                            [true, "Já foi paga", "Sai do caixa nesta data"],
+                          ] as const
+                        ).map(([v, title, sub]) => (
+                          <button
+                            key={String(v)}
+                            type="button"
+                            aria-pressed={pctPaid === v}
+                            onClick={() => setPctPaid(v)}
+                            className={cn("rounded-lg border px-2.5 py-1.5 text-left transition-colors", pctPaid === v ? "border-primary bg-brand-soft" : "bg-card hover:bg-accent/60")}
+                          >
+                            <div className="text-[12.5px] font-medium">{title}</div>
+                            <div className="text-[11px] text-muted-foreground">{sub}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {!pctPaid && (
+                        <label className="flex items-center gap-2 text-[12.5px]">
+                          Vence em
+                          <input type="date" value={pctDue ?? endOfMonth(date)} onChange={(e) => setPctDue(e.target.value)} className={cn(inputClass, "h-7 w-[150px]")} />
+                          <span className="text-muted-foreground">(dia do salário)</span>
+                        </label>
+                      )}
+                    </div>
                     <p className="text-[11.5px] text-muted-foreground">
-                      A entrada fica com o valor cheio e a porcentagem vira uma saída na mesma data e conta{period !== "none" && !editing ? " (só neste primeiro recebimento)" : ""}.
+                      A entrada fica com o valor cheio e a porcentagem vira uma saída na mesma conta{period !== "none" && !editing ? " (só neste primeiro recebimento)" : ""}.
                     </p>
                   </div>
                 )}

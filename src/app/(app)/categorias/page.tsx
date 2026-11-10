@@ -13,7 +13,7 @@ import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CountPill, Segmented } from "@/components/ui/primitives";
 import { inRange } from "@/lib/dates";
-import { SECTION_LABEL } from "@/lib/finance";
+import { categoryParts, SECTION_LABEL } from "@/lib/finance";
 import { formatBRL } from "@/lib/format";
 import { reorder, updateCategory } from "@/lib/mutations";
 import type { Category, CategoryGroup, FinanceData, MovementType } from "@/lib/types";
@@ -49,15 +49,19 @@ export default function CategoriasPage() {
     if (!data) return { map, uncategorized, inflow, outflow };
     for (const m of data.movements) {
       if (!inRange(m.date, range) || (accountIds.length && !accountIds.includes(m.bankAccountId))) continue;
-      if (!m.categoryId) {
+      const parts = categoryParts(m);
+      if (!parts[0].categoryId) {
         uncategorized++;
         continue;
       }
-      const s = map.get(m.categoryId) ?? { paid: 0, open: 0, count: 0 };
-      s.count++;
-      if (m.paid) s.paid += m.amount;
-      else s.open += m.amount;
-      map.set(m.categoryId, s);
+      for (const part of parts) {
+        if (!part.categoryId) continue;
+        const s = map.get(part.categoryId) ?? { paid: 0, open: 0, count: 0 };
+        s.count++;
+        if (m.paid) s.paid += part.amount;
+        else s.open += part.amount;
+        map.set(part.categoryId, s);
+      }
       if (m.paid) {
         if (m.type === "inflow") inflow += m.amount;
         else outflow += m.amount;

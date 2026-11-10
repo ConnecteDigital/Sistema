@@ -106,6 +106,9 @@ export async function loadFinanceData(sb: SupabaseClient): Promise<FinanceData> 
       documentNumber: str(r.document_number),
       notes: str(r.notes),
       origin: str(r.origin),
+      splits: Array.isArray(r.category_splits)
+        ? (r.category_splits as { category_id: string; amount: number }[]).map((p) => ({ categoryId: p.category_id, amount: Number(p.amount) }))
+        : undefined,
     })),
     transfers: transfers.map((r) => ({
       id: r.id,

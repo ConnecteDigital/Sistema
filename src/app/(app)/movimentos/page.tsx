@@ -38,7 +38,7 @@ import { TransfersPanel } from "@/components/transfers-panel";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Checkbox, Popover, PopoverContent, PopoverTrigger, Segmented } from "@/components/ui/primitives";
 import { inRange } from "@/lib/dates";
-import { transfersIn } from "@/lib/finance";
+import { categoryLabel, hasCategory, transfersIn } from "@/lib/finance";
 import { formatBRL, formatDate, weekday } from "@/lib/format";
 import type { Movement } from "@/lib/types";
 import { cn, groupColor } from "@/lib/utils";
@@ -81,7 +81,7 @@ function toCSV(rows: Movement[], names: { account: (id: string) => string; categ
       m.type === "inflow" ? "Entrada" : "Saída",
       esc(m.description),
       esc(names.contact(m.contactId)),
-      esc(names.category(m.categoryId)),
+      esc(categoryLabel(m, (id) => names.category(id)) ?? ""),
       esc(names.account(m.bankAccountId)),
       (m.type === "inflow" ? m.amount : -m.amount).toFixed(2).replace(".", ","),
       m.paid ? "Efetuado" : "Em aberto",
@@ -155,13 +155,13 @@ export default function MovimentosPage() {
       if (filters.status === "paid" && !m.paid) return false;
       if (filters.status === "open" && m.paid) return false;
       if (filters.status === "overdue" && (m.paid || m.date >= today)) return false;
-      if (filters.categoryIds.length && !filters.categoryIds.includes(m.categoryId ?? "")) return false;
-      if (filters.groupIds.length && !filters.groupIds.includes(lookups.cat.get(m.categoryId ?? "")?.groupId ?? "")) return false;
+      if (filters.categoryIds.length && !hasCategory(m, (id) => filters.categoryIds.includes(id))) return false;
+      if (filters.groupIds.length && !hasCategory(m, (id) => filters.groupIds.includes(lookups.cat.get(id)?.groupId ?? ""))) return false;
       if (filters.contactIds.length && !filters.contactIds.includes(m.contactId ?? "")) return false;
       if (min !== null && m.amount < min) return false;
       if (max !== null && m.amount > max) return false;
       if (q) {
-        const hay = [m.description, lookups.contact.get(m.contactId ?? "")?.name, lookups.cat.get(m.categoryId ?? "")?.name, m.documentNumber, m.notes]
+        const hay = [m.description, lookups.contact.get(m.contactId ?? "")?.name, categoryLabel(m, (id) => lookups.cat.get(id)?.name), m.documentNumber, m.notes]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -472,7 +472,6 @@ export default function MovimentosPage() {
         <ul className="border-t md:hidden">
           {rows.map((m) => {
             const contact = lookups.contact.get(m.contactId ?? "");
-            const cat = lookups.cat.get(m.categoryId ?? "");
             const st = statusOf(m, today);
             const isIn = m.type === "inflow";
             return (
@@ -501,7 +500,7 @@ export default function MovimentosPage() {
                   </div>
                   <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
                     {contact ? `${m.description} · ` : ""}
-                    {cat?.name ?? "Sem categoria"}
+                    {categoryLabel(m, (id) => lookups.cat.get(id)?.name) ?? "Sem categoria"}
                     {m.totalInstallments > 0 ? ` · ${m.installment}/${m.totalInstallments}` : ""}
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11.5px] text-muted-foreground">
@@ -635,7 +634,9 @@ export default function MovimentosPage() {
                       {cat ? (
                         <span className="inline-flex items-center gap-2">
                           <span className="size-2 rounded-full" style={{ background: groupColor(grp?.color) }} />
-                          <span className="truncate">{cat.name}</span>
+                          <span className="truncate" title={categoryLabel(m, (id) => lookups.cat.get(id)?.name)}>
+                            {categoryLabel(m, (id) => lookups.cat.get(id)?.name)}
+                          </span>
                         </span>
                       ) : (
                         <span className="text-muted-foreground">Sem categoria</span>

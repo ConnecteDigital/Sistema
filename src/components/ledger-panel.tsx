@@ -5,6 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Checkbox, CountPill, UnderlineTabs } from "@/components/ui/primitives";
 import { formatBRL, formatDayMonth } from "@/lib/format";
+import { categoryLabel } from "@/lib/finance";
 import type { Movement, MovementType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFinanceActions } from "./finance-actions";
@@ -155,7 +156,7 @@ export function LedgerPanel({
                     <td className="py-2 pr-3 font-medium" title={m.description}>
                       {names.contact.get(m.contactId ?? "") ?? m.description}
                     </td>
-                    {desktop && <td className="w-[22%] py-2.5 pr-3 text-muted-foreground">{names.category.get(m.categoryId ?? "") ?? "—"}</td>}
+                    {desktop && <td className="w-[22%] py-2.5 pr-3 text-muted-foreground">{categoryLabel(m, (id) => names.category.get(id)) ?? "—"}</td>}
                   </>
                 ) : (
                   <td className="max-w-0 py-2 pr-2">

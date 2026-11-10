@@ -1,4 +1,5 @@
 /** Relatório de lançamentos em PDF (A4 deitado), gerado no navegador. */
+import { categoryLabel } from "./finance";
 import type { Movement } from "./types";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -82,7 +83,7 @@ export async function downloadMovementsPdf(o: PdfOptions) {
       dateBR(m.date),
       m.description + (m.totalInstallments > 0 ? ` (${m.installment}/${m.totalInstallments})` : ""),
       o.names.contact(m.contactId) || "-",
-      o.names.category(m.categoryId) || "-",
+      categoryLabel(m, (id) => o.names.category(id)) || "-",
       o.names.account(m.bankAccountId),
       m.paid ? (m.type === "inflow" ? "Recebido" : "Pago") : m.date < o.today ? "Vencido" : m.type === "inflow" ? "A receber" : "A pagar",
       (m.type === "outflow" ? "- " : "") + brl.format(m.amount),

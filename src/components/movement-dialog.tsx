@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, CalendarDays, Info, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Info, Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/primitives";
@@ -112,6 +112,10 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const [remainderDate, setRemainderDate] = React.useState(editing?.date ?? today);
   const [description, setDescription] = React.useState(editing?.description ?? "");
   const [categoryId, setCategoryId] = React.useState(editing?.categoryId ?? "");
+  // Divisão em mais categorias (null = uma só). Uma linha com o valor em branco fica com o que falta.
+  const [splitRows, setSplitRows] = React.useState<{ categoryId: string; amount: string }[] | null>(
+    editing?.splits && editing.splits.length > 1 ? editing.splits.map((p) => ({ categoryId: p.categoryId, amount: money.format(p.amount) })) : null,
+  );
   const [accountId, setAccountId] = React.useState(editing?.bankAccountId ?? (data?.accounts.length === 1 ? data.accounts[0].id : ""));
   const [destAccountId, setDestAccountId] = React.useState("");
   const [competence, setCompetence] = React.useState<string | null>(editing && editing.competenceDate !== editing.date ? editing.competenceDate : null);
@@ -154,6 +158,14 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const pctAmount = Math.round(parseMoney(amount) * pctNum) / 100;
   const pctActive = pctOn && kind === "inflow" && !existingPct;
 
+  const splitTotal = parseMoney(amount);
+  const blankRows = splitRows?.filter((r) => !r.amount).length ?? 0;
+  const filledSum = Math.round((splitRows ?? []).reduce((s, r) => s + (r.amount ? parseMoney(r.amount) : 0), 0) * 100) / 100;
+  const splitRemaining = Math.round((splitTotal - filledSum) * 100) / 100;
+  const splitParts = (splitRows ?? []).map((r) => ({ categoryId: r.categoryId, amount: r.amount ? parseMoney(r.amount) : blankRows === 1 ? splitRemaining : 0 }));
+  const splitLeft = Math.round((splitTotal - splitParts.reduce((s, p) => s + p.amount, 0)) * 100) / 100;
+  const mainCategory = splitRows ? ([...splitParts].sort((a, b) => b.amount - a.amount)[0]?.categoryId ?? "") : categoryId;
+
   const settling = !!editing && !editing.paid && paid && kind !== "transfer";
   const receivedValue = received ? parseMoney(received) : parseMoney(amount);
   const settleDiff = Math.round((parseMoney(amount) - receivedValue) * 100) / 100;
@@ -195,8 +207,15 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
     if (value <= 0) return setMessage("Informe o valor.");
     if (kind === "transfer") {
       if (!accountId || !destAccountId || accountId === destAccountId) return setMessage("Escolha contas de origem e destino diferentes.");
-    } else if (!description.trim() || !categoryId || !accountId) {
+    } else if (!description.trim() || !mainCategory || !accountId) {
       return setMessage("Preencha descrição, categoria e conta.");
+    }
+    if (kind !== "transfer" && splitRows) {
+      if (splitParts.some((p) => !p.categoryId || !categories.some((c) => c.id === p.categoryId))) return setMessage("Escolha a categoria de cada parte.");
+      if (new Set(splitParts.map((p) => p.categoryId)).size !== splitParts.length) return setMessage("A mesma categoria aparece duas vezes na divisão.");
+      if (splitParts.some((p) => p.amount <= 0)) return setMessage("Informe o valor de cada categoria.");
+      if (Math.abs(splitLeft) >= 0.01)
+        return setMessage(splitLeft > 0 ? `Falta distribuir ${formatBRL(splitLeft)} entre as categorias.` : `As categorias passam ${formatBRL(-splitLeft)} do valor.`);
     }
     if (pctActive && (pctNum <= 0 || pctNum >= 100)) return setMessage("Informe a porcentagem (entre 0 e 100).");
     if (pctActive && !pctCategory) return setMessage("Escolha a categoria da porcentagem.");
@@ -213,7 +232,9 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           amount: value,
           description: description.trim(),
           bankAccountId: accountId,
-          categoryId,
+          categoryId: mainCategory,
+          // Só manda a divisão quando existe (ou para desfazer uma que existia).
+          splits: splitRows ? splitParts : editing?.splits?.length ? null : undefined,
           contactId: contactId || null,
           paid,
           documentNumber: documentNumber.trim() || null,
@@ -259,7 +280,7 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
           const dates = occurrences(date, period, quantity ?? HORIZON[period]);
           const recurrenceId = await insertRecurrence({
             type: kind, startDate: date, amount: value, period, quantity, fixed: true, active: true,
-            nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId,
+            nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId: mainCategory,
             contactId: contactId || null, description: base.description,
           });
           inflowId = (await insertMovements(
@@ -624,16 +645,86 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
             </>
           ) : (
             <>
-              <Field label="Categoria" required>
-                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
-                  <option value="">Selecione a categoria</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+              {splitRows ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-baseline justify-between text-[13px] font-medium">
+                    <span>
+                      Categorias<span className="text-brand"> *</span>
+                    </span>
+                    <button type="button" onClick={() => (setCategoryId(mainCategory), setSplitRows(null))} className="text-[11.5px] font-normal text-muted-foreground hover:text-foreground">
+                      Usar uma categoria só
+                    </button>
+                  </div>
+                  {splitRows.map((r, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <select
+                        value={r.categoryId}
+                        onChange={(e) => setSplitRows((rows) => rows!.map((x, j) => (j === i ? { ...x, categoryId: e.target.value } : x)))}
+                        className={cn(inputClass, "min-w-0 flex-1")}
+                      >
+                        <option value="">Selecione a categoria</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative w-32 shrink-0">
+                        <span className="pointer-events-none absolute left-2.5 top-1.5 text-[12px] text-muted-foreground">R$</span>
+                        <input
+                          inputMode="decimal"
+                          value={r.amount}
+                          placeholder={!r.amount && blankRows === 1 && splitRemaining > 0 ? money.format(splitRemaining) : "0,00"}
+                          onChange={(e) => setSplitRows((rows) => rows!.map((x, j) => (j === i ? { ...x, amount: e.target.value ? maskMoney(e.target.value) : "" } : x)))}
+                          className={cn(inputClass, "pl-8 text-right tabular")}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Remover categoria"
+                        disabled={splitRows.length <= 2}
+                        onClick={() => setSplitRows((rows) => rows!.filter((_, j) => j !== i))}
+                        className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
                   ))}
-                </select>
-              </Field>
+                  <div className="flex items-center justify-between gap-2 text-[12px]">
+                    <button type="button" onClick={() => setSplitRows((rows) => [...rows!, { categoryId: "", amount: "" }])} className="inline-flex items-center gap-1 font-medium text-primary">
+                      <Plus className="size-3.5" /> Adicionar categoria
+                    </button>
+                    <span className={cn("tabular", Math.abs(splitLeft) >= 0.01 ? "text-destructive-foreground" : "text-muted-foreground")}>
+                      {Math.abs(splitLeft) < 0.01 ? `Total ${formatBRL(splitTotal)} ✓` : splitLeft > 0 ? `Falta distribuir ${formatBRL(splitLeft)}` : `Passou ${formatBRL(-splitLeft)}`}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Field label="Categoria" required>
+                    <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
+                      <option value="">Selecione a categoria</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSplitRows([
+                        { categoryId, amount: "" },
+                        { categoryId: "", amount: "" },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1 text-[12px] font-medium text-primary"
+                  >
+                    <Plus className="size-3.5" /> Dividir em mais categorias
+                  </button>
+                </div>
+              )}
               <Field label="Conta" required>
                 <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputClass}>
                   <option value="">Selecione a conta</option>

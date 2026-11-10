@@ -157,6 +157,15 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
   const pctActive = pctOn && kind === "inflow" && !existingPct;
 
   const extras = extraCategoryIds.filter((id) => id !== categoryId && categories.some((c) => c.id === id));
+  // Receita fixa com mais de uma categoria (ex.: cliente novo = Freelancer + Mensalidade): a primeira
+  // leva todas; dos próximos meses em diante fica só a categoria fixa (por padrão, a de mensalidade).
+  const [nextCategoryId, setNextCategoryId] = React.useState("");
+  const chosen = categoryId ? [categoryId, ...extras] : [];
+  const seriesWithExtras = !editing && period !== "none" && extras.length > 0;
+  const nextCategory =
+    (chosen.includes(nextCategoryId) && nextCategoryId) ||
+    chosen.find((id) => /mensal/i.test(categories.find((c) => c.id === id)?.name ?? "")) ||
+    categoryId;
 
   const settling = !!editing && !editing.paid && paid && kind !== "transfer";
   const receivedValue = received ? parseMoney(received) : parseMoney(amount);
@@ -263,15 +272,24 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
         } else {
           const quantity = repeatCount ? Math.max(2, Number(repeatCount)) : null;
           const dates = occurrences(date, period, quantity ?? HORIZON[period]);
+          // Com várias categorias, a primeira fica com a "de entrada" (ex.: Freelancer) como principal,
+          // para somar nela; os próximos meses só com a fixa.
+          const firstMain = seriesWithExtras ? (chosen.find((id) => id !== nextCategory) ?? categoryId) : categoryId;
+          const firstExtras = seriesWithExtras ? chosen.filter((id) => id !== firstMain) : undefined;
           const recurrenceId = await insertRecurrence({
             type: kind, startDate: date, amount: value, period, quantity, fixed: true, active: true,
-            nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId,
+            nextDate: occurrences(date, period, dates.length + 1).at(-1)!, bankAccountId: accountId, categoryId: nextCategory,
             contactId: contactId || null, description: base.description,
           });
           inflowId = (await insertMovements(
             dates.map((d, i) => ({
               ...base, date: d, dueDate: d, competenceDate: d, paid: i === 0 && paid, recurrenceId,
               installment: quantity ? i + 1 : 0, totalInstallments: quantity ?? 0,
+              ...(seriesWithExtras
+                ? i === 0
+                  ? { categoryId: firstMain, extraCategoryIds: firstExtras }
+                  : { categoryId: nextCategory, extraCategoryIds: undefined }
+                : {}),
             })),
           ))[0];
         }
@@ -676,6 +694,18 @@ function MovementForm({ initialKind, editing, recurring, onDone }: { initialKind
                       </select>
                     </label>
                   </div>
+                )}
+                {seriesWithExtras && (
+                  <label className="flex flex-wrap items-center gap-2 rounded-lg bg-brand-soft px-2.5 py-1.5 text-[12px] text-brand-foreground">
+                    Esta primeira fica com todas as categorias. Nos próximos meses, só:
+                    <select value={nextCategory} onChange={(e) => setNextCategoryId(e.target.value)} className={cn(inputClass, "h-7 w-auto min-w-36 text-foreground")}>
+                      {chosen.map((id) => (
+                        <option key={id} value={id}>
+                          {categories.find((c) => c.id === id)?.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
               </div>
               <Field label="Conta" required>

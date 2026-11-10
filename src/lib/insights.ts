@@ -4,7 +4,7 @@
  * Tudo em regime de caixa e só com o que foi recebido/pago, salvo onde dito.
  */
 import { addMonths, daysBetween, eachMonth, endOfMonth, startOfMonth } from "./dates";
-import { balanceAt, categoryParts, movementsIn, type Scope } from "./finance";
+import { balanceAt, movementsIn, type Scope } from "./finance";
 import type { Contact, DateRange, FinanceData, ISODate, Movement } from "./types";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -142,7 +142,7 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
   for (const m of inPeriod) {
     const c = m.contactId ? contacts.get(m.contactId) : undefined;
     bump(byClient, c?.id ?? "-", c?.name ?? "Sem cliente", m.amount);
-    for (const part of categoryParts(m)) bump(byCategory, part.categoryId ?? "-", categories.get(part.categoryId ?? "")?.name ?? "Sem categoria", part.amount);
+    bump(byCategory, m.categoryId ?? "-", categories.get(m.categoryId ?? "")?.name ?? "Sem categoria", m.amount);
     const place = c ? placeOf(c) : { city: null, state: null };
     if (place.state) bump(byState, place.state, UF_NAME[place.state] ?? place.state, m.amount);
     if (place.city) bump(byCity, `${place.city}/${place.state}`, `${place.city}${place.state ? ` · ${place.state}` : ""}`, m.amount);
@@ -162,8 +162,7 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
       })
       .map((c) => c.id),
   );
-  /** Quanto do lançamento é retirada/investimento (numa divisão, só as partes dessas categorias). */
-  const withdrawalPart = (m: Movement) => categoryParts(m).reduce((s, p) => s + (withdrawalCats.has(p.categoryId ?? "") ? p.amount : 0), 0);
+  const isWithdrawal = (m: Movement) => withdrawalCats.has(m.categoryId ?? "");
   const months = eachMonth({ start: startOfMonth(addMonths(lastMonthEnd, -11)), end: lastMonthEnd });
   const monthCount = Math.max(1, period.start > lastMonthEnd ? 1 : eachMonth({ start: period.start, end: lastMonthEnd }).length);
 
@@ -181,17 +180,14 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
     const i = monthIdx.get(m.date.slice(0, 7));
     if (i === undefined || !m.paid) continue;
     if (m.type === "outflow") {
-      const w = withdrawalPart(m);
-      monthRows[i].withdrawals += w;
-      monthRows[i].costs += m.amount - w;
+      if (isWithdrawal(m)) monthRows[i].withdrawals += m.amount;
+      else monthRows[i].costs += m.amount;
       continue;
     }
     monthRows[i].revenue += m.amount;
     if (m.contactId) monthClients[i].add(m.contactId);
-    for (const part of categoryParts(m)) {
-      const key = topCategoryKeys.includes(part.categoryId ?? "-") ? (part.categoryId ?? "-") : "outros";
-      monthRows[i].byCategory[key] = (monthRows[i].byCategory[key] ?? 0) + part.amount;
-    }
+    const key = topCategoryKeys.includes(m.categoryId ?? "-") ? (m.categoryId ?? "-") : "outros";
+    monthRows[i].byCategory[key] = (monthRows[i].byCategory[key] ?? 0) + m.amount;
   }
   monthRows.forEach((r, i) => {
     r.revenue = round2(r.revenue);
@@ -241,11 +237,8 @@ export function computeInsights(data: FinanceData, scope: Scope, period: DateRan
       if (m.paid || m.date < today || m.date.slice(0, 7) !== month || !running.has(m.bankAccountId)) continue;
       running.set(m.bankAccountId, running.get(m.bankAccountId)! + (m.type === "inflow" ? m.amount : -m.amount));
       if (m.type === "inflow") inflow += m.amount;
-      else {
-        const w = withdrawalPart(m);
-        withdrawals += w;
-        costs += m.amount - w;
-      }
+      else if (isWithdrawal(m)) withdrawals += m.amount;
+      else costs += m.amount;
     }
     const balances = accounts.map((a) => ({ accountId: a.id, name: a.name, balance: round2(running.get(a.id)!) }));
     return { month, inflow: round2(inflow), costs: round2(costs), withdrawals: round2(withdrawals), balances, balance: round2(balances.reduce((s, b) => s + b.balance, 0)) };

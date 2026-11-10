@@ -5,7 +5,6 @@ import * as React from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "@/components/ui/primitives";
 import { eachDay } from "@/lib/dates";
-import { categoryParts } from "@/lib/finance";
 import { formatBRL, formatCompact } from "@/lib/format";
 import type { DateRange, Movement, MovementType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -156,20 +155,19 @@ export function useRankings(movements: Movement[]) {
   return React.useMemo(() => {
     const contact = new Map(data?.contacts.map((c) => [c.id, c.name]) ?? []);
     const category = new Map(data?.categories.map((c) => [c.id, c.name]) ?? []);
-    const group = (partsOf: (m: Movement) => { key: string | null; amount: number }[], nameOf: (k: string) => string | undefined, none: string) => {
+    const group = (keyOf: (m: Movement) => string | null, nameOf: (k: string) => string | undefined, none: string) => {
       const totals = new Map<string, number>();
-      for (const m of movements)
-        for (const p of partsOf(m)) {
-          const k = p.key ?? "none";
-          totals.set(k, (totals.get(k) ?? 0) + p.amount);
-        }
+      for (const m of movements) {
+        const k = keyOf(m) ?? "none";
+        totals.set(k, (totals.get(k) ?? 0) + m.amount);
+      }
       return [...totals.entries()]
         .map(([key, amount]) => ({ key, name: key === "none" ? none : nameOf(key) ?? none, amount: Math.round(amount * 100) / 100 }))
         .sort((a, b) => b.amount - a.amount);
     };
     return {
-      byContact: group((m) => [{ key: m.contactId, amount: m.amount }], (k) => contact.get(k), "Sem vínculo"),
-      byCategory: group((m) => categoryParts(m).map((p) => ({ key: p.categoryId, amount: p.amount })), (k) => category.get(k), "Sem categoria"),
+      byContact: group((m) => m.contactId, (k) => contact.get(k), "Sem vínculo"),
+      byCategory: group((m) => m.categoryId, (k) => category.get(k), "Sem categoria"),
     };
   }, [movements, data]);
 }

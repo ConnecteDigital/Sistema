@@ -91,11 +91,6 @@ export interface Recurrence {
   description: string;
 }
 
-export interface CategorySplit {
-  categoryId: string;
-  amount: number;
-}
-
 export interface Movement {
   id: string;
   type: MovementType;
@@ -114,10 +109,10 @@ export interface Movement {
   documentNumber: string | null;
   notes: string | null;
   /**
-   * Divisão em mais de uma categoria; vazio/ausente = só `categoryId`. Se a soma não bater
-   * com `amount` (ex.: baixa parcial depois), as partes são ajustadas na proporção.
+   * Outras categorias além da principal (`categoryId`), sem dividir o valor: o lançamento
+   * inteiro também é desta(s) categoria(s). Os totais contam o valor só na principal.
    */
-  splits?: CategorySplit[] | null;
+  extraCategoryIds?: string[] | null;
   /** De onde veio: "card:<id>" (compra no cartão), "ofx:<fitid>" (extrato importado)… */
   origin?: string | null;
 }

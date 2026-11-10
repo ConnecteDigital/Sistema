@@ -11,31 +11,18 @@ import type {
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const signed = (m: Movement) => (m.type === "inflow" ? m.amount : -m.amount);
 
-/**
- * Partes do lançamento por categoria: a divisão, se houver, ou a categoria única. As partes
- * sempre somam o valor do lançamento (se a divisão não bater, é ajustada na proporção).
- */
-export function categoryParts(m: Pick<Movement, "amount" | "categoryId" | "splits">): { categoryId: string | null; amount: number }[] {
-  const parts = m.splits?.filter((p) => p.categoryId && p.amount > 0) ?? [];
-  if (parts.length < 2) return [{ categoryId: parts[0]?.categoryId ?? m.categoryId, amount: m.amount }];
-  const sum = parts.reduce((s, p) => s + p.amount, 0);
-  if (Math.abs(sum - m.amount) < 0.005) return parts;
-  const scaled = parts.map((p) => ({ categoryId: p.categoryId, amount: round2((p.amount / sum) * m.amount) }));
-  scaled[0].amount = round2(scaled[0].amount + m.amount - scaled.reduce((s, p) => s + p.amount, 0));
-  return scaled;
-}
+/** Todas as categorias do lançamento: a principal e as adicionais. */
+export const categoriesOf = (m: Pick<Movement, "categoryId" | "extraCategoryIds">): string[] =>
+  [m.categoryId, ...(m.extraCategoryIds ?? [])].filter((id, i, all): id is string => !!id && all.indexOf(id) === i);
 
-/** Nome das categorias do lançamento ("Criação de site + Mensalidade"). */
-export function categoryLabel(m: Pick<Movement, "amount" | "categoryId" | "splits">, nameOf: (id: string) => string | undefined): string | undefined {
-  const names = categoryParts(m)
-    .map((p) => (p.categoryId ? nameOf(p.categoryId) : undefined))
-    .filter(Boolean);
+/** Nome das categorias do lançamento ("Mensalidade + Freelancer"). */
+export function categoryLabel(m: Pick<Movement, "categoryId" | "extraCategoryIds">, nameOf: (id: string) => string | undefined): string | undefined {
+  const names = categoriesOf(m).map(nameOf).filter(Boolean);
   return names.length ? names.join(" + ") : undefined;
 }
 
-/** O lançamento tem esta categoria (em qualquer parte da divisão)? */
-export const hasCategory = (m: Pick<Movement, "amount" | "categoryId" | "splits">, test: (id: string) => boolean) =>
-  categoryParts(m).some((p) => p.categoryId != null && test(p.categoryId));
+/** O lançamento tem esta categoria (principal ou adicional)? */
+export const hasCategory = (m: Pick<Movement, "categoryId" | "extraCategoryIds">, test: (id: string) => boolean) => categoriesOf(m).some(test);
 
 export interface Scope {
   /** Contas selecionadas; vazio = todas. */
@@ -259,22 +246,20 @@ export function cashflowStatement(data: FinanceData, scope: Scope, range: DateRa
   for (const m of movementsIn(data, scope, range)) {
     if (!m.paid) continue;
     const i = mi.get(m.date.slice(0, 7));
-    if (i === undefined) continue;
-    for (const part of categoryParts(m)) {
-      const cat = part.categoryId ? catById.get(part.categoryId) : undefined;
-      const group = cat && groupById.get(cat.groupId);
-      if (!cat || !group) continue;
-      let gr = groupRows.get(group.id);
-      if (!gr) groupRows.set(group.id, (gr = { id: group.id, name: group.name, color: group.color, values: zero(), total: 0, categories: [] }));
-      let cr = catRows.get(cat.id);
-      if (!cr) {
-        catRows.set(cat.id, (cr = { id: cat.id, name: cat.name, values: zero(), total: 0 }));
-        gr.categories!.push(cr);
-      }
-      const v = m.type === "inflow" ? part.amount : -part.amount;
-      gr.values[i] += v;
-      cr.values[i] += v;
+    if (i === undefined || !m.categoryId) continue;
+    const cat = catById.get(m.categoryId);
+    const group = cat && groupById.get(cat.groupId);
+    if (!cat || !group) continue;
+    let gr = groupRows.get(group.id);
+    if (!gr) groupRows.set(group.id, (gr = { id: group.id, name: group.name, color: group.color, values: zero(), total: 0, categories: [] }));
+    let cr = catRows.get(cat.id);
+    if (!cr) {
+      catRows.set(cat.id, (cr = { id: cat.id, name: cat.name, values: zero(), total: 0 }));
+      gr.categories!.push(cr);
     }
+    const v = signed(m);
+    gr.values[i] += v;
+    cr.values[i] += v;
   }
 
   const sections = Object.fromEntries(
@@ -336,10 +321,8 @@ export function expensesByCategory(data: FinanceData, scope: Scope, range: DateR
   const totals = new Map<string, number>();
   for (const m of movementsIn(data, scope, range)) {
     if (!m.paid || m.type !== type) continue;
-    for (const part of categoryParts(m)) {
-      const key = part.categoryId ?? "none";
-      totals.set(key, (totals.get(key) ?? 0) + part.amount);
-    }
+    const key = m.categoryId ?? "none";
+    totals.set(key, (totals.get(key) ?? 0) + m.amount);
   }
   const all = [...totals.entries()]
     .map(([id, amount]) => ({ id, name: catById.get(id)?.name ?? "Sem categoria", amount: round2(amount) }))

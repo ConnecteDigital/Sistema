@@ -166,7 +166,7 @@ export function missingOccurrences(data: FinanceData, today: ISODate): Omit<Move
         description: template.description || r.description,
         bankAccountId: r.bankAccountId,
         categoryId: r.categoryId ?? template.categoryId,
-        ...(template.splits?.length ? { splits: template.splits } : {}),
+        ...(template.extraCategoryIds?.length ? { extraCategoryIds: template.extraCategoryIds } : {}),
         contactId: r.contactId ?? template.contactId,
         recurrenceId: r.id,
         paid: false,

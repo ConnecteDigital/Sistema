@@ -32,16 +32,15 @@ function toRow(m: Partial<MovementInput>) {
   if (m.documentNumber !== undefined) row.document_number = m.documentNumber;
   if (m.notes !== undefined) row.notes = m.notes;
   if (m.origin !== undefined) row.origin = m.origin;
-  // Só envia a coluna quando há divisão (ou para desfazer uma), para não depender dela no banco.
-  if (m.splits !== undefined && (m.splits?.length || m.splits === null))
-    row.category_splits = m.splits?.length ? m.splits.map((p) => ({ category_id: p.categoryId, amount: p.amount })) : null;
+  // Só envia a coluna quando há categorias adicionais (ou para tirar as que havia).
+  if (m.extraCategoryIds !== undefined) row.extra_category_ids = m.extraCategoryIds?.length ? m.extraCategoryIds : null;
   return row;
 }
 
 async function check<T>(p: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
   const { data, error } = await p;
-  if (error && /category_splits/.test(error.message))
-    throw new Error("Para dividir em mais categorias, rode no Supabase o arquivo supabase/migrations/0004_category_splits.sql.");
+  if (error && /extra_category_ids/.test(error.message))
+    throw new Error("Para usar mais de uma categoria, rode no Supabase o arquivo supabase/migrations/0004_extra_categories.sql.");
   if (error) throw new Error(error.message);
   return data;
 }
